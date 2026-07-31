@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F1419">
+<title>Junkers Car Wash</title>
+<link rel="stylesheet" href="css/base.css">
+</head>
+<body>
+
+<div class="app" id="app">
+  <aside class="rail" id="rail">
+    <div class="rail-cabecera">
+      <div class="marca" style="font-size:19px;text-align:left">JUNKERS <span>CW</span></div>
+    </div>
+    <nav class="rail-nav" id="nav"></nav>
+    <div class="rail-pie">
+      <div class="usuario-chip">
+        <div class="avatar" id="avatar">–</div>
+        <div style="min-width:0">
+          <div class="usuario-nombre" id="quien">…</div>
+          <div class="usuario-rol" id="rol"></div>
+        </div>
+      </div>
+      <button class="btn btn-chico btn-ancho" id="salir" style="margin-top:8px">Cerrar sesión</button>
+    </div>
+  </aside>
+
+  <main class="lienzo">
+    <header class="barra">
+      <button class="btn-menu" id="menu" aria-label="Abrir menú">☰</button>
+      <h1 id="titulo">…</h1>
+      <div class="barra-espacio"></div>
+      <div class="barra-dato oculto-movil" id="estado"></div>
+    </header>
+    <section class="vista" id="vista"></section>
+  </main>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
