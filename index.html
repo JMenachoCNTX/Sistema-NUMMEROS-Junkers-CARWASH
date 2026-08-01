@@ -679,6 +679,39 @@ async function ajustesEntre(desde, hasta) {
 const guardarPlanilla = (id,d) => setDoc(doc(db,'planillas',id),d,{merge:true});
 const leerPlanilla = async id => { const s=await getDoc(doc(db,'planillas',id)); return s.exists()?{id,...s.data()}:null; };
 
+/* ---------- MEMBRESÍAS (v0.5) ---------- */
+// Planes configurables (Silver, Black…): lavados gratis por mes y % de descuento.
+const PLANES_DEFAULT = [
+  { id:'silver', nombre:'SILVER', precio:150, lavadosGratis:4, descuento:10, activo:true, orden:1 },
+  { id:'black',  nombre:'BLACK',  precio:300, lavadosGratis:10, descuento:20, activo:true, orden:2 }
+];
+async function planesMembresia() {
+  const s = await getDoc(doc(db,'config','planes'));
+  return s.exists() && Array.isArray(s.data().planes) && s.data().planes.length
+    ? s.data().planes : PLANES_DEFAULT;
+}
+const guardarPlanes = planes => setDoc(doc(db,'config','planes'),{planes},{merge:true});
+
+// Socios: uno por membresía activa. Guarda plan, vencimiento y lavados usados en el ciclo.
+async function listarSocios() {
+  const s = await getDocs(collection(db,'socios'));
+  return s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+}
+const guardarSocio = (id,d) => id ? setDoc(doc(db,'socios',id),d,{merge:true}) : addDoc(collection(db,'socios'),d);
+const borrarSocio  = id => deleteDoc(doc(db,'socios',id));
+const leerSocio    = async id => { const s=await getDoc(doc(db,'socios',id)); return s.exists()?{id,...s.data()}:null; };
+
+// Suma un mes a una fecha ISO (para renovaciones).
+function masUnMes(iso) {
+  const [a,m,d]=iso.split('-').map(Number);
+  const f=new Date(a,m-1,d); f.setMonth(f.getMonth()+1);
+  return `${f.getFullYear()}-${String(f.getMonth()+1).padStart(2,'0')}-${String(f.getDate()).padStart(2,'0')}`;
+}
+function diasEntre(desdeISO, hastaISO) {
+  const [a1,m1,d1]=desdeISO.split('-').map(Number), [a2,m2,d2]=hastaISO.split('-').map(Number);
+  return Math.round((new Date(a2,m2-1,d2)-new Date(a1,m1-1,d1))/864e5);
+}
+
 /* =========================================================
    PANTALLAS: login / instalador / app
    ========================================================= */
@@ -1558,6 +1591,10 @@ MODULOS.insumos = async function(vista) { return inventarioGenerico(vista, 'insu
   titulo:'Insumos de limpieza',
   desc:'Shampoo, cera, paños, etc. No se venden: se consumen. Registrá compras (entrada) y consumo (salida).'
 }); };
+MODULOS.equipos = async function(vista) { return inventarioGenerico(vista, 'equipo', {
+  titulo:'Equipos',
+  desc:'Hidrolavadoras, aspiradoras, herramientas. Llevá el conteo y el valor de cada equipo.'
+}); };
 
 async function inventarioGenerico(vista, tipo, info) {
   let productos = await listarProductos(tipo);
@@ -2131,11 +2168,248 @@ MODULOS.planillas = async function(vista) {
 };
 
 /* =========================================================
+   MÓDULOS DIRECCIÓN (v0.5)
+   ========================================================= */
+
+// ---------- TABLERO ----------
+MODULOS.tablero = async function(vista) {
+  vista.innerHTML = `<div class="tarjeta">
+    <div class="rejilla rejilla-2" style="gap:0 12px;align-items:end">
+      <label class="campo"><span>Período</span><select id="periodo">
+        <option value="hoy">Hoy</option><option value="semana">Esta semana</option>
+        <option value="mes">Este mes</option><option value="custom">Personalizado</option></select></label>
+      <div id="rango-custom" style="display:none">
+        <div class="rejilla rejilla-2" style="gap:0 8px">
+          <label class="campo"><span>Desde</span><input type="date" id="d"></label>
+          <label class="campo"><span>Hasta</span><input type="date" id="h"></label></div></div></div>
+    <p class="hint" id="rango-txt"></p></div>
+    <div class="mt" id="cuerpo"></div>`;
+
+  function rangoActual() {
+    const p=$('#periodo',vista).value, hoy=hoyISO();
+    if (p==='hoy') return {desde:hoy,hasta:hoy};
+    if (p==='semana') { const s=semanaDe(hoy); return {desde:s.desde,hasta:s.hasta}; }
+    if (p==='mes') { const [a,m]=hoy.split('-'); return {desde:`${a}-${m}-01`,hasta:hoy}; }
+    return {desde:$('#d',vista).value||hoy,hasta:$('#h',vista).value||hoy};
+  }
+
+  async function pintar() {
+    const {desde,hasta}=rangoActual();
+    $('#rango-txt',vista).textContent = desde===hasta ? `Día ${fechaBO(desde)}` : `${fechaBO(desde)} al ${fechaBO(hasta)}`;
+    $('#cuerpo',vista).innerHTML='<p class="vacio">Calculando…</p>';
+
+    const [ordenes,ventas,egresos,prod] = await Promise.all([
+      ordenesEntre(desde,hasta,5000), ventasEntre(desde,hasta,5000),
+      egresosEntre(desde,hasta,5000), calcularProduccion(desde,hasta)
+    ]);
+    const L=separarPago(ordenes,'tarifa'), T=separarPago(ventas,'total'), G=separarPago(egresos,'monto');
+    const ingresos=L.total+T.total, neto=ingresos-G.total;
+
+    // por día (para el mini-comparativo)
+    const porDia={};
+    ordenes.forEach(o=>{porDia[o.fecha]=(porDia[o.fecha]||0)+Number(o.tarifa||0);});
+    ventas.forEach(v=>{porDia[v.fecha]=(porDia[v.fecha]||0)+Number(v.total||0);});
+    const dias=Object.keys(porDia).sort();
+    const maxDia=Math.max(1,...Object.values(porDia));
+
+    // ranking lavadores
+    const rank=prod.filter(p=>p.autos||p.motos).sort((a,b)=>(b.autos+b.motos)-(a.autos+a.motos)).slice(0,8);
+
+    // servicios más pedidos
+    const servCount={};
+    ordenes.forEach(o=>{servCount[o.servicio]=(servCount[o.servicio]||0)+1;});
+    const topServ=Object.entries(servCount).sort((a,b)=>b[1]-a[1]).slice(0,6);
+
+    // tiempo promedio de lavado (de las que tienen demora)
+    const conDemora=ordenes.filter(o=>o.demoraSeg>0);
+    const promSeg=conDemora.length?conDemora.reduce((s,o)=>s+o.demoraSeg,0)/conDemora.length:0;
+
+    const kpi=(k,v,sub='')=>`<div class="tarjeta">
+      <div class="hint" style="font-family:var(--dato);font-size:10px;letter-spacing:.14em;text-transform:uppercase">${k}</div>
+      <div class="mono" style="font-size:26px;font-weight:700;margin-top:4px">${v}</div>
+      ${sub?`<div class="hint" style="margin-top:2px">${sub}</div>`:''}</div>`;
+
+    $('#cuerpo',vista).innerHTML = `
+      <div class="rejilla rejilla-3">
+        ${kpi('Lavados',ordenes.length,`Bs ${bs(L.total)}`)}
+        ${kpi('Ventas tienda',ventas.length,`Bs ${bs(T.total)}`)}
+        ${kpi('Ingresos','Bs '+bs(ingresos),'lavados + tienda')}
+        ${kpi('Efectivo','Bs '+bs(L.efe+T.efe))}
+        ${kpi('QR / transf.','Bs '+bs(L.qr+T.qr))}
+        ${kpi('Egresos','Bs '+bs(G.total),`${egresos.length} gastos`)}
+        ${kpi('Neto','Bs '+bs(neto),'ingresos − egresos')}
+        ${kpi('Comisiones','Bs '+bs(prod.reduce((s,p)=>s+p.bono+p.comision,0)),'bonos + comisión')}
+        ${kpi('Tiempo prom.',promSeg?reloj(promSeg):'—','por lavado')}
+      </div>
+
+      ${dias.length>1?`<div class="tarjeta mt"><h3>Ingresos por día</h3>
+        <div style="display:flex;align-items:flex-end;gap:6px;height:150px;padding-top:10px">
+          ${dias.map(f=>{const v=porDia[f],h=Math.round(v/maxDia*130);
+            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0">
+              <div class="hint mono" style="font-size:10px">${bs(v)}</div>
+              <div style="width:100%;max-width:38px;height:${h}px;background:linear-gradient(var(--agua),var(--agua-hondo));border-radius:4px 4px 0 0"></div>
+              <div class="hint mono" style="font-size:9px">${f.slice(5)}</div></div>`;}).join('')}
+        </div></div>`:''}
+
+      <div class="rejilla rejilla-2 mt">
+        <div class="tarjeta"><h3>Ranking de lavadores</h3>
+          ${rank.length?`<div class="tabla-marco"><table>
+            <thead><tr><th>#</th><th>Lavador</th><th class="num">Autos</th><th class="num">Motos</th>
+              <th class="num">Total</th><th class="num">A cobrar</th></tr></thead>
+            <tbody>${rank.map((p,i)=>`<tr><td class="mono">${i+1}</td><td><b>${esc(p.nombre)}</b></td>
+              <td class="num">${p.autos}</td><td class="num">${p.motos}</td>
+              <td class="num" style="font-weight:600">${p.autos+p.motos}</td>
+              <td class="num">${bs(p.bono+p.comision)}</td></tr>`).join('')}</tbody></table></div>`
+          :'<p class="hint">Sin lavados con lavador asignado.</p>'}</div>
+        <div class="tarjeta"><h3>Servicios más pedidos</h3>
+          ${topServ.length?`<div class="tabla-marco"><table>
+            <thead><tr><th>Servicio</th><th class="num">Veces</th></tr></thead>
+            <tbody>${topServ.map(([s,n])=>`<tr><td>${esc(s)}</td><td class="num">${n}</td></tr>`).join('')}</tbody></table></div>`
+          :'<p class="hint">Sin datos.</p>'}</div>
+      </div>`;
+  }
+
+  $('#periodo',vista).onchange = () => {
+    $('#rango-custom',vista).style.display = $('#periodo',vista).value==='custom' ? '' : 'none';
+    if ($('#periodo',vista).value!=='custom') pintar();
+  };
+  $('#d',vista).onchange=$('#h',vista).onchange=pintar;
+  const hoy=hoyISO(); $('#d',vista).value=hoy; $('#h',vista).value=hoy;
+  await pintar();
+};
+
+// ---------- MEMBRESÍAS ----------
+MODULOS.membresias = async function(vista) {
+  let planes = await planesMembresia();
+  let socios = await listarSocios();
+
+  vista.innerHTML = `<div class="tarjeta">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div><h3 style="margin:0">Socios con membresía</h3>
+        <p class="hint" style="margin-top:4px">Membresías mensuales. Cada plan da lavados gratis y/o descuento.</p></div>
+      <div class="fila-btn" style="margin-left:auto">
+        ${esAdmin()?'<button class="btn" id="editar-planes">Editar planes</button>':''}
+        <button class="btn btn-agua" id="nuevo">Nuevo socio</button></div></div>
+    <div class="rejilla rejilla-3 mt" id="planes-resumen"></div></div>
+    <div class="mt" id="tabla"></div>`;
+
+  function estadoSocio(s) {
+    const hoy=hoyISO();
+    if (!s.vence) return ['','Sin fecha'];
+    const d=diasEntre(hoy,s.vence);
+    if (d<0) return ['rojo','Vencida'];
+    if (d<=5) return ['cera',`Vence en ${d}d`];
+    return ['verde',`${d}d restantes`];
+  }
+  function pintar() {
+    $('#planes-resumen',vista).innerHTML = planes.filter(p=>p.activo!==false).map(p=>{
+      const cuenta=socios.filter(s=>s.plan===p.nombre).length;
+      return `<div class="tarjeta" style="padding:14px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="etiqueta ${p.nombre==='BLACK'?'':'agua'}" style="font-size:12px">${esc(p.nombre)}</span>
+          <b class="mono" style="margin-left:auto">Bs ${bs(p.precio)}/mes</b></div>
+        <div class="hint mt">${p.lavadosGratis||0} lavados gratis · ${p.descuento||0}% desc. · ${cuenta} socio${cuenta===1?'':'s'}</div></div>`;
+    }).join('');
+
+    $('#tabla',vista).innerHTML = socios.length ? `<div class="tabla-marco"><table>
+      <thead><tr><th>Socio</th><th>Plan</th><th>Placa</th><th class="num">Gratis usados</th><th>Vence</th><th>Estado</th><th></th></tr></thead>
+      <tbody>${socios.map(s=>{
+        const [c,txt]=estadoSocio(s);
+        const plan=planes.find(p=>p.nombre===s.plan);
+        const gratis=plan?.lavadosGratis||0;
+        return `<tr><td><b>${esc(s.nombre)}</b></td>
+          <td><span class="etiqueta ${s.plan==='BLACK'?'':'agua'}">${esc(s.plan)}</span></td>
+          <td class="mono">${esc(s.placa||'—')}</td>
+          <td class="num">${s.gratisUsados||0} / ${gratis}</td>
+          <td class="mono">${s.vence?fechaBO(s.vence):'—'}</td>
+          <td><span class="etiqueta ${c}">${txt}</span></td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-chico btn-verde" data-renovar="${s.id}">Renovar</button>
+            <button class="btn btn-chico" data-ed="${s.id}">Editar</button>
+            ${esAdmin()?`<button class="btn btn-chico btn-rojo" data-del="${s.id}">×</button>`:''}</td></tr>`;
+      }).join('')}</tbody></table></div>`
+      : '<div class="vacio"><p>Todavía no hay socios.</p><p class="hint">Tocá "Nuevo socio".</p></div>';
+
+    vista.querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>editor(socios.find(s=>s.id===b.dataset.ed)));
+    vista.querySelectorAll('[data-renovar]').forEach(b=>b.onclick=()=>renovar(socios.find(s=>s.id===b.dataset.renovar)));
+    vista.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+      const s=socios.find(x=>x.id===b.dataset.del);
+      if (!await confirmar(`Borrar al socio ${s.nombre}.`,'Borrar')) return;
+      await borrarSocio(s.id); socios=socios.filter(x=>x.id!==s.id); pintar(); aviso('Socio borrado.','ok');
+    });
+  }
+  async function renovar(s) {
+    const base = (s.vence && diasEntre(hoyISO(),s.vence)>0) ? s.vence : hoyISO();
+    const nuevoVence=masUnMes(base);
+    if (!await confirmar(`Renovar a ${s.nombre} un mes más. Nuevo vencimiento: ${fechaBO(nuevoVence)}. Se reinician los lavados gratis.`,'Renovar')) return;
+    await guardarSocio(s.id,{vence:nuevoVence,gratisUsados:0,ultimaRenovacion:hoyISO()});
+    socios=await listarSocios(); pintar(); aviso('Membresía renovada.','ok');
+  }
+  function editor(s=null) {
+    const activos=planes.filter(p=>p.activo!==false);
+    const m=modal(s?`Editar ${s.nombre}`:'Nuevo socio',`
+      <label class="campo"><span>Nombre</span><input id="n" value="${esc(s?.nombre||'')}"></label>
+      <div class="rejilla rejilla-2" style="gap:0 12px">
+        <label class="campo"><span>Plan</span><select id="plan">${opciones(activos.map(p=>p.nombre),s?.plan)}</select></label>
+        <label class="campo"><span>Placa — opcional</span><input class="mono" id="placa" value="${esc(s?.placa||'')}" style="text-transform:uppercase"></label></div>
+      <div class="rejilla rejilla-2" style="gap:0 12px">
+        <label class="campo"><span>Teléfono — opcional</span><input class="mono" id="tel" value="${esc(s?.telefono||'')}"></label>
+        <label class="campo"><span>Vence</span><input type="date" id="vence" value="${s?.vence||masUnMes(hoyISO())}"></label></div>
+      ${s?`<label class="campo"><span>Lavados gratis usados este ciclo</span><input class="mono" type="number" min="0" id="usados" value="${s.gratisUsados||0}"></label>`:''}
+      <div class="fila-btn" style="justify-content:flex-end"><button class="btn btn-agua" id="ok">Guardar</button></div>`,{ancho:440});
+    m.cuerpo.querySelector('#ok').onclick = async () => {
+      const g=id=>m.cuerpo.querySelector('#'+id);
+      const nombre=g('n').value.trim();
+      if (!nombre) return aviso('Escribí el nombre.','error');
+      const d={nombre,plan:g('plan').value,placa:g('placa').value.trim().toUpperCase(),
+        telefono:g('tel').value.trim(),vence:g('vence').value};
+      if (s) d.gratisUsados=Number(g('usados').value)||0; else { d.gratisUsados=0; d.alta=hoyISO(); }
+      try { await guardarSocio(s?.id,d); socios=await listarSocios(); m.cerrar(); pintar(); aviso('Socio guardado.','ok'); }
+      catch(e){ aviso(e.message,'error'); }
+    };
+  }
+  function editarPlanes() {
+    const m=modal('Planes de membresía',`
+      <p class="hint" style="margin-bottom:14px">Definí precio, lavados gratis por mes y descuento de cada plan.</p>
+      <div id="planes-edit">${planes.map((p,i)=>filaPlan(p,i)).join('')}</div>
+      <button class="btn btn-chico mt" id="add-plan">Agregar plan</button>
+      <div class="fila-btn mt" style="justify-content:flex-end"><button class="btn btn-agua" id="ok">Guardar planes</button></div>`,{ancho:520});
+    function filaPlan(p={},i){return `<div class="tarjeta" style="padding:12px;margin-bottom:10px" data-plan>
+      <div class="rejilla rejilla-2" style="gap:0 10px">
+        <label class="campo" style="margin-bottom:8px"><span>Nombre</span><input class="p-nombre" value="${esc(p.nombre||'')}" style="text-transform:uppercase"></label>
+        <label class="campo" style="margin-bottom:8px"><span>Precio/mes (Bs)</span><input class="mono p-precio" type="number" min="0" step="0.5" value="${p.precio??0}"></label></div>
+      <div class="rejilla rejilla-2" style="gap:0 10px">
+        <label class="campo" style="margin-bottom:8px"><span>Lavados gratis</span><input class="mono p-gratis" type="number" min="0" value="${p.lavadosGratis??0}"></label>
+        <label class="campo" style="margin-bottom:8px"><span>Descuento (%)</span><input class="mono p-desc" type="number" min="0" max="100" value="${p.descuento??0}"></label></div>
+      <button class="btn btn-chico btn-rojo" data-quita-plan>Quitar plan</button></div>`;}
+    const cont=m.cuerpo.querySelector('#planes-edit');
+    const reenganchar=()=>cont.querySelectorAll('[data-quita-plan]').forEach(b=>b.onclick=()=>{b.closest('[data-plan]').remove();});
+    reenganchar();
+    m.cuerpo.querySelector('#add-plan').onclick=()=>{cont.insertAdjacentHTML('beforeend',filaPlan({},cont.children.length));reenganchar();};
+    m.cuerpo.querySelector('#ok').onclick = async () => {
+      const nuevos=[...cont.querySelectorAll('[data-plan]')].map((el,i)=>({
+        id:(el.querySelector('.p-nombre').value.trim().toLowerCase().replace(/[^a-z0-9]/g,'')||'plan'+i),
+        nombre:el.querySelector('.p-nombre').value.trim().toUpperCase(),
+        precio:Number(el.querySelector('.p-precio').value)||0,
+        lavadosGratis:Number(el.querySelector('.p-gratis').value)||0,
+        descuento:Number(el.querySelector('.p-desc').value)||0,
+        activo:true, orden:i+1
+      })).filter(p=>p.nombre);
+      if (!nuevos.length) return aviso('Dejá al menos un plan.','error');
+      await guardarPlanes(nuevos); planes=nuevos; m.cerrar(); pintar(); aviso('Planes guardados.','ok');
+    };
+  }
+  $('#nuevo',vista).onclick=()=>editor();
+  $('#editar-planes',vista)&&($('#editar-planes',vista).onclick=editarPlanes);
+  pintar();
+};
+
+/* =========================================================
    MENÚ Y RUTEO
    ========================================================= */
 const TABS=[
   {grupo:'Operación'},
-  {id:'tablero',nom:'Tablero',ico:'▦',v:'0.5'},
+  {id:'tablero',nom:'Tablero',ico:'▦',fn:'tablero'},
   {id:'registro',nom:'Registro',ico:'＋',fn:'registro'},
   {id:'monitoreo',nom:'Monitoreo',ico:'◉',fn:'monitoreo'},
   {id:'historial',nom:'Historial',ico:'≡',fn:'historial'},
@@ -2154,8 +2428,8 @@ const TABS=[
   {grupo:'Catálogos'},
   {id:'precios',nom:'Precios',ico:'฿',fn:'precios'},
   {id:'catalogos',nom:'Listas',ico:'⌗',fn:'catalogos'},
-  {id:'membresias',nom:'Membresías',ico:'⬖',v:'0.5'},
-  {id:'equipos',nom:'Equipos',ico:'⚙',v:'0.3'},
+  {id:'membresias',nom:'Membresías',ico:'⬖',fn:'membresias'},
+  {id:'equipos',nom:'Equipos',ico:'⚙',fn:'equipos'},
   {grupo:'Sistema'},
   {id:'usuarios',nom:'Usuarios',ico:'☺',fn:'usuarios',admin:true},
   {id:'perfil',nom:'Mi PIN',ico:'⚿',fn:'perfil'}
