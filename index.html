@@ -580,6 +580,65 @@ async function ventasEntre(desde, hasta, max=1000) {
   return s.docs.map(d=>({id:d.id,...d.data()}));
 }
 
+/* ---------- CAJA (v0.3) ---------- */
+// Categorías de egreso (editables por admin).
+const CATEGORIAS_EGRESO_DEFAULT = [
+  'SUELDOS','INSUMOS LIMPIEZA','MERCADERÍA TIENDA','SERVICIOS (LUZ/AGUA)',
+  'ALQUILER','MANTENIMIENTO','TRANSPORTE','VARIOS'
+];
+async function categoriasEgreso() {
+  const s = await getDoc(doc(db,'config','egresos'));
+  return s.exists() && Array.isArray(s.data().categorias) && s.data().categorias.length
+    ? s.data().categorias : CATEGORIAS_EGRESO_DEFAULT;
+}
+const guardarCategoriasEgreso = cats => setDoc(doc(db,'config','egresos'),{categorias:cats},{merge:true});
+
+// Egresos: gastos que salen de caja.
+const nuevoEgreso  = d => addDoc(collection(db,'egresos'),{...d,creadoEn:serverTimestamp()});
+const borrarEgreso = id => deleteDoc(doc(db,'egresos',id));
+function escucharEgresosDelDia(fecha, cb) {
+  return onSnapshot(query(collection(db,'egresos'),where('fecha','==',fecha)), s =>
+    cb(s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.hora.localeCompare(a.hora))));
+}
+async function egresosEntre(desde, hasta, max=1000) {
+  const s = await getDocs(query(collection(db,'egresos'),
+    where('fecha','>=',desde),where('fecha','<=',hasta),orderBy('fecha','desc'),limit(max)));
+  return s.docs.map(d=>({id:d.id,...d.data()}));
+}
+
+// Aportes y devoluciones: entra plata (aporte de socio) o sale (devolución).
+const nuevoAporte  = d => addDoc(collection(db,'aportes'),{...d,creadoEn:serverTimestamp()});
+const borrarAporte = id => deleteDoc(doc(db,'aportes',id));
+function escucharAportesDelDia(fecha, cb) {
+  return onSnapshot(query(collection(db,'aportes'),where('fecha','==',fecha)), s =>
+    cb(s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.hora.localeCompare(a.hora))));
+}
+async function aportesEntre(desde, hasta, max=1000) {
+  const s = await getDocs(query(collection(db,'aportes'),
+    where('fecha','>=',desde),where('fecha','<=',hasta),orderBy('fecha','desc'),limit(max)));
+  return s.docs.map(d=>({id:d.id,...d.data()}));
+}
+
+// Arqueo: caja inicial + cierre del día. Un documento por fecha.
+const leerArqueo = async fecha => { const s=await getDoc(doc(db,'arqueos',fecha)); return s.exists()?{id:fecha,...s.data()}:null; };
+const guardarArqueo = (fecha,d) => setDoc(doc(db,'arqueos',fecha),{...d,fecha},{merge:true});
+async function ordenesDelDia(fecha) {
+  const s = await getDocs(query(collection(db,'ordenes'),where('fecha','==',fecha)));
+  return s.docs.map(d=>({id:d.id,...d.data()}));
+}
+async function ventasDelDia(fecha) {
+  const s = await getDocs(query(collection(db,'ventas'),where('fecha','==',fecha)));
+  return s.docs.map(d=>({id:d.id,...d.data()}));
+}
+async function egresosDelDia(fecha) {
+  const s = await getDocs(query(collection(db,'egresos'),where('fecha','==',fecha)));
+  return s.docs.map(d=>({id:d.id,...d.data()}));
+}
+async function aportesDelDia(fecha) {
+  const s = await getDocs(query(collection(db,'aportes'),where('fecha','==',fecha)));
+  return s.docs.map(d=>({id:d.id,...d.data()}));
+}
+
 /* =========================================================
    PANTALLAS: login / instalador / app
    ========================================================= */
@@ -1595,6 +1654,213 @@ MODULOS.stock = async function(vista) {
 };
 
 /* =========================================================
+   MÓDULOS CAJA (v0.3)
+   ========================================================= */
+
+// Helper: separa un total en efectivo vs QR/transferencia según tipoPago.
+function separarPago(items, campoTotal='tarifa') {
+  const efe = items.filter(x=>x.tipoPago==='EFECTIVO').reduce((s,x)=>s+Number(x[campoTotal]||0),0);
+  const qr  = items.filter(x=>x.tipoPago!=='EFECTIVO').reduce((s,x)=>s+Number(x[campoTotal]||0),0);
+  return { efe, qr, total: efe+qr };
+}
+
+// ---------- EGRESOS ----------
+MODULOS.egresos = async function(vista) {
+  let cats = await categoriasEgreso();
+  vista.innerHTML = `<div class="vista-ancha rejilla rejilla-registro">
+    <form class="tarjeta" id="f"><h3>Registrar egreso</h3>
+      <label class="campo"><span>Categoría</span><select name="categoria">${opciones(cats)}</select></label>
+      <label class="campo"><span>Detalle</span><input name="detalle" placeholder="¿en qué se gastó?" autocomplete="off"></label>
+      <div class="rejilla rejilla-2" style="gap:0 12px">
+        <label class="campo"><span>Monto (Bs)</span><input class="mono" name="monto" type="number" min="0" step="0.5" placeholder="0"></label>
+        <label class="campo"><span>Pagado con</span><select name="tipoPago">${opciones(['EFECTIVO','PAGO QR','TRANSFERENCIA'])}</select></label></div>
+      <label class="campo"><span>Comprobante / Nro — opcional</span><input name="comprobante" autocomplete="off"></label>
+      <div class="fila-btn mt"><button class="btn btn-agua" type="submit" id="g">Registrar egreso</button>
+        ${esAdmin()?'<button class="btn" type="button" id="cats">Editar categorías</button>':''}</div></form>
+    <div class="tarjeta"><h3>Egresos de hoy</h3>
+      <div id="resumen" class="rejilla rejilla-2" style="margin-bottom:14px"></div><div id="lista"></div></div></div>`;
+
+  const f=$('#f',vista);
+  const cortar = escucharEgresosDelDia(hoyISO(), egresos => {
+    const {efe,qr,total}=separarPago(egresos,'monto');
+    $('#resumen',vista).innerHTML=[['Total gastado','Bs '+bs(total)],['Efectivo','Bs '+bs(efe)],['QR / transf.','Bs '+bs(qr)],['Cantidad',egresos.length]]
+      .map(([k,v])=>`<div><div class="hint" style="font-family:var(--dato);font-size:10px;letter-spacing:.14em;text-transform:uppercase">${k}</div>
+        <div class="mono" style="font-size:18px;font-weight:600;margin-top:3px">${v}</div></div>`).join('');
+    $('#lista',vista).innerHTML = egresos.length ? `<div class="tabla-marco"><table>
+      <thead><tr><th>Hora</th><th>Categoría</th><th>Detalle</th><th>Pago</th><th class="num">Bs</th><th></th></tr></thead>
+      <tbody>${egresos.map(e=>`<tr><td class="mono">${esc(e.hora)}</td>
+        <td><span class="etiqueta">${esc(e.categoria)}</span></td><td>${esc(e.detalle||'—')}</td>
+        <td>${esc(e.tipoPago)}</td><td class="num">${bs(e.monto)}</td>
+        <td>${esAdmin()?`<button class="btn btn-chico btn-rojo" data-del="${e.id}">×</button>`:''}</td></tr>`).join('')}</tbody></table></div>`
+      : '<p class="hint">Sin egresos hoy.</p>';
+    vista.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+      const e=egresos.find(x=>x.id===b.dataset.del);
+      if (!await confirmar(`Borrar egreso de Bs ${bs(e.monto)} (${e.categoria}).`,'Borrar')) return;
+      await borrarEgreso(e.id); aviso('Egreso borrado.','ok');
+    });
+  });
+
+  f.onsubmit = async ev => {
+    ev.preventDefault();
+    const monto=Number(f.monto.value)||0;
+    if (monto<=0) return aviso('Poné un monto válido.','error');
+    const b=$('#g',vista); b.disabled=true;
+    try {
+      await nuevoEgreso({ fecha:hoyISO(), hora:horaAhora(), categoria:f.categoria.value,
+        detalle:f.detalle.value.trim(), monto, tipoPago:f.tipoPago.value,
+        comprobante:f.comprobante.value.trim(), encargado:sesion.nombre, encargadoUid:sesion.uid });
+      aviso('Egreso registrado.','ok'); f.reset();
+    } catch(e){ aviso(e.message,'error'); } finally { b.disabled=false; }
+  };
+  if (esAdmin()) $('#cats',vista).onclick = () => {
+    const m=modal('Categorías de egreso',`
+      <p class="hint" style="margin-bottom:12px">Una por línea. Se usan en el menú desplegable.</p>
+      <textarea id="txt" rows="10" style="font-family:var(--dato);font-size:13px">${esc(cats.join('\n'))}</textarea>
+      <div class="fila-btn mt" style="justify-content:flex-end"><button class="btn btn-agua" id="ok">Guardar</button></div>`);
+    m.cuerpo.querySelector('#ok').onclick = async () => {
+      const nuevas=m.cuerpo.querySelector('#txt').value.split('\n').map(s=>s.trim().toUpperCase()).filter(Boolean);
+      if (!nuevas.length) return aviso('Dejá al menos una categoría.','error');
+      await guardarCategoriasEgreso(nuevas); cats=nuevas;
+      f.categoria.innerHTML=opciones(cats); m.cerrar(); aviso('Categorías guardadas.','ok');
+    };
+  };
+  return () => cortar();
+};
+
+// ---------- APORTES Y DEVOLUCIONES ----------
+MODULOS.aportes = async function(vista) {
+  vista.innerHTML = `<div class="vista-ancha rejilla rejilla-registro">
+    <form class="tarjeta" id="f"><h3>Aporte o devolución</h3>
+      <label class="campo"><span>Tipo</span><select name="tipo">
+        <option value="APORTE">Aporte (entra plata a caja)</option>
+        <option value="DEVOLUCION">Devolución (sale plata de caja)</option></select></label>
+      <label class="campo"><span>Persona</span><input name="persona" placeholder="socio / responsable" autocomplete="off"></label>
+      <div class="rejilla rejilla-2" style="gap:0 12px">
+        <label class="campo"><span>Monto (Bs)</span><input class="mono" name="monto" type="number" min="0" step="0.5" placeholder="0"></label>
+        <label class="campo"><span>Medio</span><select name="tipoPago">${opciones(['EFECTIVO','PAGO QR','TRANSFERENCIA'])}</select></label></div>
+      <label class="campo"><span>Motivo — opcional</span><input name="motivo" autocomplete="off"></label>
+      <div class="fila-btn mt"><button class="btn btn-agua" type="submit" id="g">Registrar</button></div></form>
+    <div class="tarjeta"><h3>Movimientos de hoy</h3>
+      <div id="resumen" class="rejilla rejilla-3" style="margin-bottom:14px"></div><div id="lista"></div></div></div>`;
+
+  const f=$('#f',vista);
+  const cortar = escucharAportesDelDia(hoyISO(), movs => {
+    const ap=movs.filter(m=>m.tipo==='APORTE').reduce((s,m)=>s+Number(m.monto||0),0);
+    const dv=movs.filter(m=>m.tipo==='DEVOLUCION').reduce((s,m)=>s+Number(m.monto||0),0);
+    $('#resumen',vista).innerHTML=[['Aportes','Bs '+bs(ap)],['Devoluciones','Bs '+bs(dv)],['Neto','Bs '+bs(ap-dv)]]
+      .map(([k,v])=>`<div><div class="hint" style="font-family:var(--dato);font-size:10px;letter-spacing:.14em;text-transform:uppercase">${k}</div>
+        <div class="mono" style="font-size:18px;font-weight:600;margin-top:3px">${v}</div></div>`).join('');
+    $('#lista',vista).innerHTML = movs.length ? `<div class="tabla-marco"><table>
+      <thead><tr><th>Hora</th><th>Tipo</th><th>Persona</th><th>Motivo</th><th class="num">Bs</th><th></th></tr></thead>
+      <tbody>${movs.map(m=>`<tr><td class="mono">${esc(m.hora)}</td>
+        <td><span class="etiqueta ${m.tipo==='APORTE'?'verde':'cera'}">${m.tipo==='APORTE'?'Aporte':'Devol.'}</span></td>
+        <td>${esc(m.persona||'—')}</td><td>${esc(m.motivo||'—')}</td><td class="num">${bs(m.monto)}</td>
+        <td>${esAdmin()?`<button class="btn btn-chico btn-rojo" data-del="${m.id}">×</button>`:''}</td></tr>`).join('')}</tbody></table></div>`
+      : '<p class="hint">Sin movimientos hoy.</p>';
+    vista.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+      const m=movs.find(x=>x.id===b.dataset.del);
+      if (!await confirmar(`Borrar este movimiento de Bs ${bs(m.monto)}.`,'Borrar')) return;
+      await borrarAporte(m.id); aviso('Borrado.','ok');
+    });
+  });
+  f.onsubmit = async ev => {
+    ev.preventDefault();
+    const monto=Number(f.monto.value)||0;
+    if (monto<=0) return aviso('Poné un monto válido.','error');
+    const b=$('#g',vista); b.disabled=true;
+    try {
+      await nuevoAporte({ fecha:hoyISO(), hora:horaAhora(), tipo:f.tipo.value,
+        persona:f.persona.value.trim(), monto, tipoPago:f.tipoPago.value,
+        motivo:f.motivo.value.trim(), encargado:sesion.nombre, encargadoUid:sesion.uid });
+      aviso('Registrado.','ok'); f.reset();
+    } catch(e){ aviso(e.message,'error'); } finally { b.disabled=false; }
+  };
+  return () => cortar();
+};
+
+// ---------- ARQUEO ----------
+MODULOS.arqueo = async function(vista) {
+  vista.innerHTML = `<div class="tarjeta">
+    <div class="rejilla rejilla-2" style="gap:0 12px;align-items:end">
+      <label class="campo"><span>Fecha del arqueo</span><input type="date" id="fecha" value="${hoyISO()}"></label>
+      <div><button class="btn btn-agua" id="calcular">Calcular arqueo</button></div></div></div>
+    <div class="mt" id="cuerpo"></div>`;
+
+  async function calcular() {
+    const fecha=$('#fecha',vista).value;
+    $('#cuerpo',vista).innerHTML='<p class="vacio">Calculando…</p>';
+    const [ordenes,ventas,egresos,aportes,arqueoGuardado]=await Promise.all([
+      ordenesDelDia(fecha),ventasDelDia(fecha),egresosDelDia(fecha),aportesDelDia(fecha),leerArqueo(fecha)
+    ]);
+    const L=separarPago(ordenes,'tarifa');   // lavados
+    const T=separarPago(ventas,'total');     // tienda
+    const G=separarPago(egresos,'monto');    // egresos
+    const apEfe=aportes.filter(a=>a.tipo==='APORTE'&&a.tipoPago==='EFECTIVO').reduce((s,a)=>s+Number(a.monto||0),0);
+    const apQr =aportes.filter(a=>a.tipo==='APORTE'&&a.tipoPago!=='EFECTIVO').reduce((s,a)=>s+Number(a.monto||0),0);
+    const dvEfe=aportes.filter(a=>a.tipo==='DEVOLUCION'&&a.tipoPago==='EFECTIVO').reduce((s,a)=>s+Number(a.monto||0),0);
+    const dvQr =aportes.filter(a=>a.tipo==='DEVOLUCION'&&a.tipoPago!=='EFECTIVO').reduce((s,a)=>s+Number(a.monto||0),0);
+
+    const iniEfe=Number(arqueoGuardado?.inicialEfe||0), iniQr=Number(arqueoGuardado?.inicialQr||0);
+    // Caja teórica = inicial + ingresos − egresos + aportes − devoluciones, por medio.
+    const espEfe = iniEfe + L.efe + T.efe + apEfe - G.efe - dvEfe;
+    const espQr  = iniQr  + L.qr  + T.qr  + apQr  - G.qr  - dvQr;
+
+    const fila=(k,ef,qr,neg=false)=>`<tr><td>${k}</td>
+      <td class="num" style="${neg&&ef?'color:var(--rojo)':''}">${neg&&ef?'−':''}${bs(ef)}</td>
+      <td class="num" style="${neg&&qr?'color:var(--rojo)':''}">${neg&&qr?'−':''}${bs(qr)}</td></tr>`;
+
+    $('#cuerpo',vista).innerHTML = `
+      <div class="rejilla rejilla-2">
+        <div class="tarjeta"><h3>Caja inicial del día</h3>
+          <div class="rejilla rejilla-2" style="gap:0 12px">
+            <label class="campo"><span>Efectivo inicial (Bs)</span><input class="mono" type="number" step="0.5" id="ini-efe" value="${iniEfe}"></label>
+            <label class="campo"><span>QR inicial (Bs)</span><input class="mono" type="number" step="0.5" id="ini-qr" value="${iniQr}"></label></div>
+          <button class="btn btn-chico" id="guardar-ini">Guardar caja inicial</button></div>
+        <div class="tarjeta"><h3>Cierre — conteo real</h3>
+          <div class="rejilla rejilla-2" style="gap:0 12px">
+            <label class="campo"><span>Efectivo contado (Bs)</span><input class="mono" type="number" step="0.5" id="real-efe" value="${arqueoGuardado?.realEfe??''}"></label>
+            <label class="campo"><span>QR contado (Bs)</span><input class="mono" type="number" step="0.5" id="real-qr" value="${arqueoGuardado?.realQr??''}"></label></div>
+          <button class="btn btn-chico btn-agua" id="cerrar-dia">Comparar y cerrar</button></div></div>
+
+      <div class="tarjeta mt"><h3>Detalle del día · ${fechaBO(fecha)}</h3>
+        <div class="tabla-marco"><table>
+          <thead><tr><th>Concepto</th><th class="num">Efectivo</th><th class="num">QR / transf.</th></tr></thead>
+          <tbody>
+            ${fila('Caja inicial',iniEfe,iniQr)}
+            ${fila(`Lavados (${ordenes.length})`,L.efe,L.qr)}
+            ${fila(`Tienda (${ventas.length})`,T.efe,T.qr)}
+            ${fila('Aportes',apEfe,apQr)}
+            ${fila(`Egresos (${egresos.length})`,G.efe,G.qr,true)}
+            ${fila('Devoluciones',dvEfe,dvQr,true)}
+            <tr style="border-top:2px solid var(--linea);font-weight:700">
+              <td>Caja esperada</td><td class="num">${bs(espEfe)}</td><td class="num">${bs(espQr)}</td></tr>
+          </tbody></table></div>
+        <p class="hint mt">La "caja esperada" es lo que debería haber si todo se registró bien.
+          Compará con el conteo real para ver si sobra o falta.</p></div>
+      <div id="resultado"></div>`;
+
+    $('#guardar-ini',vista).onclick = async () => {
+      await guardarArqueo(fecha,{inicialEfe:Number($('#ini-efe',vista).value)||0,inicialQr:Number($('#ini-qr',vista).value)||0});
+      aviso('Caja inicial guardada.','ok'); calcular();
+    };
+    $('#cerrar-dia',vista).onclick = async () => {
+      const realEfe=Number($('#real-efe',vista).value)||0, realQr=Number($('#real-qr',vista).value)||0;
+      const difEfe=realEfe-espEfe, difQr=realQr-espQr;
+      await guardarArqueo(fecha,{realEfe,realQr,espEfe,espQr,difEfe,difQr,
+        cerradoPor:sesion.nombre,cerradoEn:serverTimestamp()});
+      const chip=(lbl,d)=>{const c=Math.abs(d)<0.01?'verde':d>0?'cera':'rojo';
+        const t=Math.abs(d)<0.01?'Cuadra':d>0?'Sobra Bs '+bs(d):'Falta Bs '+bs(-d);
+        return `<div class="tarjeta"><div class="hint">${lbl}</div>
+          <div style="margin-top:6px"><span class="etiqueta ${c}" style="font-size:13px;padding:5px 10px">${t}</span></div></div>`;};
+      $('#resultado',vista).innerHTML=`<div class="rejilla rejilla-2 mt">${chip('Efectivo',difEfe)}${chip('QR / transf.',difQr)}</div>`;
+      aviso('Arqueo cerrado.','ok');
+    };
+  }
+  $('#calcular',vista).onclick=calcular;
+  await calcular();
+};
+
+/* =========================================================
    MENÚ Y RUTEO
    ========================================================= */
 const TABS=[
@@ -1604,9 +1870,9 @@ const TABS=[
   {id:'monitoreo',nom:'Monitoreo',ico:'◉',fn:'monitoreo'},
   {id:'historial',nom:'Historial',ico:'≡',fn:'historial'},
   {grupo:'Caja'},
-  {id:'arqueo',nom:'Arqueo',ico:'▤',v:'0.3'},
-  {id:'egresos',nom:'Egresos',ico:'↓',v:'0.3'},
-  {id:'aportes',nom:'Aportes y dev.',ico:'⇄',v:'0.3'},
+  {id:'arqueo',nom:'Arqueo',ico:'▤',fn:'arqueo'},
+  {id:'egresos',nom:'Egresos',ico:'↓',fn:'egresos'},
+  {id:'aportes',nom:'Aportes y dev.',ico:'⇄',fn:'aportes'},
   {grupo:'Tienda'},
   {id:'venta',nom:'Venta snacks',ico:'⛁',fn:'venta'},
   {id:'inventario',nom:'Inventario',ico:'▣',fn:'inventario'},
