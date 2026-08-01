@@ -519,6 +519,67 @@ async function config() {
 }
 const guardarConfig = d => setDoc(doc(db,'config','general'),d,{merge:true});
 
+/* ---------- TIENDA (v0.2) ---------- */
+// Productos de tienda: precio de venta, costo, saldo de stock.
+async function listarProductos(cat='tienda') {
+  const s = await getDocs(collection(db,'productos'));
+  return s.docs.map(d=>({id:d.id,...d.data()})).filter(p=>(p.tipo||'tienda')===cat)
+    .sort((a,b)=>(a.orden??99)-(b.orden??99)||a.nombre.localeCompare(b.nombre));
+}
+const guardarProducto = (id,d) => id ? setDoc(doc(db,'productos',id),d,{merge:true}) : addDoc(collection(db,'productos'),d);
+const borrarProducto  = id => deleteDoc(doc(db,'productos',id));
+const leerProducto    = async id => { const s=await getDoc(doc(db,'productos',id)); return s.exists()?{id,...s.data()}:null; };
+
+// Movimiento de stock: entrada (compra/ajuste +) o salida (venta/ajuste −).
+// Cada venta o compra crea un movimiento Y ajusta el saldo del producto en la misma transacción.
+async function registrarMovimiento(productoId, cantidad, motivo, extra={}) {
+  const refP = doc(db,'productos',productoId);
+  return runTransaction(db, async t => {
+    const s = await t.get(refP);
+    if (!s.exists()) throw new Error('El producto ya no existe.');
+    const saldoAnt = Number(s.data().stock||0);
+    const saldoNue = saldoAnt + Number(cantidad);
+    t.update(refP, { stock: saldoNue });
+    const refM = doc(collection(db,'movimientos'));
+    t.set(refM, {
+      productoId, productoNombre: s.data().nombre,
+      cantidad: Number(cantidad), motivo,
+      saldoAntes: saldoAnt, saldoDespues: saldoNue,
+      fecha: hoyISO(), hora: horaAhora(),
+      encargado: sesion.nombre, encargadoUid: sesion.uid,
+      creadoEn: serverTimestamp(), ...extra
+    });
+    return saldoNue;
+  });
+}
+async function movimientosEntre(desde, hasta, max=1000) {
+  const s = await getDocs(query(collection(db,'movimientos'),
+    where('fecha','>=',desde),where('fecha','<=',hasta),orderBy('fecha','desc'),limit(max)));
+  return s.docs.map(d=>({id:d.id,...d.data()}));
+}
+
+// Ventas de tienda: cabecera con varios ítems. Descuenta stock por cada ítem.
+const nuevaVenta = d => addDoc(collection(db,'ventas'),{...d,creadoEn:serverTimestamp()});
+const borrarVenta = id => deleteDoc(doc(db,'ventas',id));
+async function siguienteVenta() {
+  const ref = doc(db,'contadores','ventas');
+  return runTransaction(db, async t => {
+    const s = await t.get(ref);
+    const n = (s.exists()?s.data().ultimo||0:0)+1;
+    t.set(ref,{ultimo:n},{merge:true});
+    return n;
+  });
+}
+function escucharVentasDelDia(fecha, cb) {
+  return onSnapshot(query(collection(db,'ventas'),where('fecha','==',fecha)), s =>
+    cb(s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.hora.localeCompare(a.hora))));
+}
+async function ventasEntre(desde, hasta, max=1000) {
+  const s = await getDocs(query(collection(db,'ventas'),
+    where('fecha','>=',desde),where('fecha','<=',hasta),orderBy('fecha','desc'),limit(max)));
+  return s.docs.map(d=>({id:d.id,...d.data()}));
+}
+
 /* =========================================================
    PANTALLAS: login / instalador / app
    ========================================================= */
@@ -1256,6 +1317,284 @@ MODULOS.perfil = async function(vista) {
 };
 
 /* =========================================================
+   MÓDULOS TIENDA (v0.2)
+   ========================================================= */
+
+// ---------- VENTA SNACKS ----------
+MODULOS.venta = async function(vista) {
+  let productos = await listarProductos('tienda');
+  const carrito = new Map(); // id -> {producto, cant}
+
+  vista.innerHTML = `<div class="vista-ancha rejilla rejilla-registro">
+    <div class="tarjeta"><h3>Productos</h3>
+      <label class="campo"><span>Buscar</span><input id="q" placeholder="nombre del producto…" autocomplete="off"></label>
+      <div id="lista-prod"></div></div>
+    <div>
+      <div class="tarjeta"><h3>Venta actual</h3><div id="carrito"></div>
+        <div id="total-caja" style="display:none">
+          <div style="display:flex;border-top:1px solid var(--linea);padding-top:12px;margin-top:6px">
+            <span style="font-weight:600">TOTAL</span>
+            <b class="mono" id="total" style="margin-left:auto;font-size:20px">Bs 0,00</b></div>
+          <label class="campo mt"><span>Forma de pago</span>
+            <select id="pago">${opciones(['EFECTIVO','PAGO QR','TRANSFERENCIA'])}</select></label>
+          <button class="btn btn-verde btn-ancho" id="cobrar">Cobrar venta</button></div></div>
+      <div class="tarjeta mt"><h3>Ventas de hoy</h3><div class="rejilla rejilla-3" id="resumen"></div>
+        <div id="ultimas" class="mt"></div></div></div></div>`;
+
+  function pintarProductos() {
+    const q = $('#q',vista).value.trim().toLowerCase();
+    const f = productos.filter(p=>p.activo!==false && (!q||p.nombre.toLowerCase().includes(q)));
+    $('#lista-prod',vista).innerHTML = f.length ? `<div class="tabla-marco"><table>
+      <thead><tr><th>Producto</th><th class="num">Precio</th><th class="num">Stock</th><th></th></tr></thead>
+      <tbody>${f.map(p=>`<tr>
+        <td>${esc(p.nombre)}</td><td class="num">${bs(p.precio)}</td>
+        <td class="num" style="color:${Number(p.stock||0)<=0?'var(--rojo)':Number(p.stock||0)<=(p.minimo??3)?'var(--cera)':'var(--espuma)'}">${Number(p.stock||0)}</td>
+        <td><button class="btn btn-chico btn-agua" data-add="${p.id}"${Number(p.stock||0)<=0?' disabled':''}>Agregar</button></td>
+      </tr>`).join('')}</tbody></table></div>`
+      : '<p class="hint">No hay productos. Cargalos en la pestaña Inventario.</p>';
+    $('#lista-prod',vista).querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>agregar(b.dataset.add));
+  }
+  function agregar(id) {
+    const p = productos.find(x=>x.id===id); if (!p) return;
+    const enCarro = carrito.get(id)?.cant || 0;
+    if (enCarro+1 > Number(p.stock||0)) return aviso('No hay suficiente stock.','error');
+    carrito.set(id, { producto:p, cant:enCarro+1 });
+    pintarCarrito();
+  }
+  function pintarCarrito() {
+    const items = [...carrito.values()];
+    $('#total-caja',vista).style.display = items.length ? '' : 'none';
+    $('#carrito',vista).innerHTML = items.length ? `<div class="tabla-marco"><table>
+      <thead><tr><th>Producto</th><th>Cant.</th><th class="num">Subtot.</th><th></th></tr></thead>
+      <tbody>${items.map(({producto:p,cant})=>`<tr>
+        <td>${esc(p.nombre)}</td>
+        <td><div class="fila-btn" style="gap:4px;flex-wrap:nowrap">
+          <button class="btn btn-chico" data-menos="${p.id}">−</button>
+          <span class="mono" style="min-width:22px;text-align:center">${cant}</span>
+          <button class="btn btn-chico" data-mas="${p.id}">+</button></div></td>
+        <td class="num">${bs(p.precio*cant)}</td>
+        <td><button class="btn btn-chico btn-rojo" data-quita="${p.id}">×</button></td>
+      </tr>`).join('')}</tbody></table></div>` : '<p class="hint">Agregá productos de la izquierda.</p>';
+    const total = items.reduce((s,{producto:p,cant})=>s+p.precio*cant,0);
+    $('#total',vista).textContent = 'Bs '+bs(total);
+    $('#carrito',vista).querySelectorAll('[data-mas]').forEach(b=>b.onclick=()=>agregar(b.dataset.mas));
+    $('#carrito',vista).querySelectorAll('[data-menos]').forEach(b=>b.onclick=()=>{
+      const c=carrito.get(b.dataset.menos); if(!c) return;
+      if (c.cant<=1) carrito.delete(b.dataset.menos); else c.cant--;
+      pintarCarrito();
+    });
+    $('#carrito',vista).querySelectorAll('[data-quita]').forEach(b=>b.onclick=()=>{carrito.delete(b.dataset.quita);pintarCarrito();});
+  }
+
+  const cortarVentas = escucharVentasDelDia(hoyISO(), ventas => {
+    const total=ventas.reduce((s,v)=>s+Number(v.total||0),0);
+    const efe=ventas.filter(v=>v.tipoPago==='EFECTIVO').reduce((s,v)=>s+Number(v.total||0),0);
+    $('#resumen',vista).innerHTML=[['Ventas',ventas.length],['Efectivo','Bs '+bs(efe)],['QR / transf.','Bs '+bs(total-efe)]]
+      .map(([k,v])=>`<div><div class="hint" style="font-family:var(--dato);font-size:10px;letter-spacing:.14em;text-transform:uppercase">${k}</div>
+        <div class="mono" style="font-size:20px;font-weight:600;margin-top:3px">${v}</div></div>`).join('');
+    $('#ultimas',vista).innerHTML = ventas.length ? `<div class="tabla-marco"><table>
+      <thead><tr><th>Nro</th><th>Hora</th><th>Ítems</th><th class="num">Bs</th></tr></thead>
+      <tbody>${ventas.slice(0,8).map(v=>`<tr><td class="mono">${v.nro}</td><td class="mono">${esc(v.hora)}</td>
+        <td>${v.items?.length||0}</td><td class="num">${bs(v.total)}</td></tr>`).join('')}</tbody></table></div>`
+      : '<p class="hint">Todavía no hay ventas hoy.</p>';
+  });
+
+  $('#cobrar',vista).onclick = async () => {
+    const items=[...carrito.values()]; if (!items.length) return;
+    const b=$('#cobrar',vista); b.disabled=true; b.textContent='Cobrando…';
+    try {
+      // Verificar stock actual antes de cobrar (evita vender de menos).
+      for (const {producto:p,cant} of items) {
+        const act = await leerProducto(p.id);
+        if (!act || Number(act.stock||0) < cant) throw new Error(`Sin stock suficiente de ${p.nombre}.`);
+      }
+      const nro = await siguienteVenta();
+      const total = items.reduce((s,{producto:p,cant})=>s+p.precio*cant,0);
+      const detalle = items.map(({producto:p,cant})=>({productoId:p.id,nombre:p.nombre,precio:p.precio,cant,subtotal:p.precio*cant}));
+      const ventaRef = await nuevaVenta({
+        nro, fecha:hoyISO(), hora:horaAhora(), items:detalle, total,
+        tipoPago:$('#pago',vista).value, encargado:sesion.nombre, encargadoUid:sesion.uid
+      });
+      // Descontar stock: un movimiento por ítem.
+      for (const {producto:p,cant} of items) {
+        await registrarMovimiento(p.id, -cant, 'VENTA', { ventaId: ventaRef.id, ventaNro: nro });
+      }
+      aviso(`Venta ${nro} cobrada — Bs ${bs(total)}.`,'ok');
+      carrito.clear(); pintarCarrito();
+      productos = await listarProductos('tienda'); pintarProductos();
+    } catch(e) { aviso(e.message,'error'); }
+    finally { b.disabled=false; b.textContent='Cobrar venta'; }
+  };
+
+  $('#q',vista).oninput = pintarProductos;
+  pintarProductos(); pintarCarrito();
+  return () => cortarVentas();
+};
+
+// ---------- INVENTARIO (alta de productos + compras) ----------
+MODULOS.inventario = async function(vista) { return inventarioGenerico(vista, 'tienda', {
+  titulo:'Inventario de tienda',
+  desc:'Productos que vendés en el mostrador. Al comprar mercadería, registrá la entrada para sumar stock.'
+}); };
+MODULOS.insumos = async function(vista) { return inventarioGenerico(vista, 'insumo', {
+  titulo:'Insumos de limpieza',
+  desc:'Shampoo, cera, paños, etc. No se venden: se consumen. Registrá compras (entrada) y consumo (salida).'
+}); };
+
+async function inventarioGenerico(vista, tipo, info) {
+  let productos = await listarProductos(tipo);
+  vista.innerHTML = `<div class="tarjeta">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div><h3 style="margin:0">${info.titulo}</h3><p class="hint" style="margin-top:4px">${info.desc}</p></div>
+      ${esAdmin()?'<button class="btn btn-agua" id="nuevo" style="margin-left:auto">Agregar producto</button>':''}</div></div>
+    <div class="mt" id="tabla"></div>`;
+
+  function pintar() {
+    $('#tabla',vista).innerHTML = productos.length ? `<div class="tabla-marco"><table>
+      <thead><tr><th>Producto</th>${tipo==='tienda'?'<th class="num">Precio venta</th>':''}
+        <th class="num">Costo</th><th class="num">Stock</th><th>Estado</th><th></th></tr></thead>
+      <tbody>${productos.map(p=>{
+        const st=Number(p.stock||0), min=p.minimo??3;
+        const et = st<=0 ? ['rojo','Agotado'] : st<=min ? ['cera','Bajo'] : ['verde','OK'];
+        return `<tr>
+          <td>${esc(p.nombre)}${p.activo===false?' <span class="etiqueta">inactivo</span>':''}</td>
+          ${tipo==='tienda'?`<td class="num">${bs(p.precio)}</td>`:''}
+          <td class="num">${bs(p.costo)}</td>
+          <td class="num" style="font-weight:600">${st}</td>
+          <td><span class="etiqueta ${et[0]}">${et[1]}</span></td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-chico btn-verde" data-entra="${p.id}">Entrada</button>
+            <button class="btn btn-chico" data-sale="${p.id}">${tipo==='tienda'?'Ajuste':'Consumo'}</button>
+            ${esAdmin()?`<button class="btn btn-chico" data-ed="${p.id}">Editar</button>
+              <button class="btn btn-chico btn-rojo" data-del="${p.id}">×</button>`:''}
+          </td></tr>`;}).join('')}</tbody></table></div>`
+      : `<div class="vacio"><p>Todavía no hay productos.</p>${esAdmin()?'<p class="hint">Tocá "Agregar producto".</p>':''}</div>`;
+    vista.querySelectorAll('[data-entra]').forEach(b=>b.onclick=()=>mover(productos.find(p=>p.id===b.dataset.entra),'entrada'));
+    vista.querySelectorAll('[data-sale]').forEach(b=>b.onclick=()=>mover(productos.find(p=>p.id===b.dataset.sale),'salida'));
+    vista.querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>editor(productos.find(p=>p.id===b.dataset.ed)));
+    vista.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+      const p=productos.find(x=>x.id===b.dataset.del);
+      if (!await confirmar(`Borrar "${p.nombre}". El historial de movimientos se conserva.`,'Borrar')) return;
+      await borrarProducto(p.id); productos=productos.filter(x=>x.id!==p.id); pintar(); aviso('Producto borrado.','ok');
+    });
+  }
+  function mover(p, dir) {
+    if (!p) return;
+    const entra = dir==='entrada';
+    const m = modal(`${entra?'Entrada':(tipo==='tienda'?'Ajuste':'Consumo')} · ${p.nombre}`, `
+      <p class="hint" style="margin-bottom:14px">Stock actual: <b class="mono">${Number(p.stock||0)}</b></p>
+      <label class="campo"><span>Cantidad</span>
+        <input class="mono" type="number" min="1" step="1" id="c" placeholder="0"></label>
+      ${entra?`<label class="campo"><span>Costo unitario (Bs) — opcional</span>
+        <input class="mono" type="number" min="0" step="0.5" id="costo" value="${p.costo??''}"></label>`:''}
+      <label class="campo"><span>Nota — opcional</span>
+        <input id="nota" placeholder="${entra?'compra proveedor…':'ajuste, merma…'}"></label>
+      <div class="fila-btn" style="justify-content:flex-end">
+        <button class="btn ${entra?'btn-verde':'btn-agua'}" id="ok">Confirmar ${entra?'entrada':'salida'}</button></div>`, {ancho:400});
+    m.cuerpo.querySelector('#ok').onclick = async () => {
+      const cant = Math.floor(Number(m.cuerpo.querySelector('#c').value));
+      if (!cant || cant<=0) return aviso('Poné una cantidad válida.','error');
+      if (!entra && cant > Number(p.stock||0)) return aviso('No podés sacar más de lo que hay en stock.','error');
+      const nota = m.cuerpo.querySelector('#nota').value.trim();
+      try {
+        if (entra) {
+          const costo = m.cuerpo.querySelector('#costo').value;
+          if (costo!=='') await guardarProducto(p.id,{costo:Number(costo)});
+          await registrarMovimiento(p.id, cant, 'COMPRA', nota?{nota}:{});
+        } else {
+          await registrarMovimiento(p.id, -cant, tipo==='tienda'?'AJUSTE':'CONSUMO', nota?{nota}:{});
+        }
+        m.cerrar(); productos = await listarProductos(tipo); pintar(); aviso('Stock actualizado.','ok');
+      } catch(e){ aviso(e.message,'error'); }
+    };
+  }
+  function editor(p=null) {
+    const m = modal(p?'Editar producto':'Nuevo producto', `
+      <label class="campo"><span>Nombre</span><input id="n" value="${esc(p?.nombre||'')}" placeholder="Coca Cola 500ml"></label>
+      <div class="rejilla rejilla-2" style="gap:0 12px">
+        ${tipo==='tienda'?`<label class="campo"><span>Precio de venta (Bs)</span>
+          <input class="mono" type="number" min="0" step="0.5" id="precio" value="${p?.precio??''}"></label>`:''}
+        <label class="campo"><span>Costo unitario (Bs)</span>
+          <input class="mono" type="number" min="0" step="0.5" id="costo" value="${p?.costo??''}"></label></div>
+      <div class="rejilla rejilla-2" style="gap:0 12px">
+        <label class="campo"><span>Stock inicial</span>
+          <input class="mono" type="number" min="0" step="1" id="stock" value="${p?.stock??0}"${p?' disabled':''}></label>
+        <label class="campo"><span>Alerta de stock bajo</span>
+          <input class="mono" type="number" min="0" step="1" id="minimo" value="${p?.minimo??3}"></label></div>
+      ${p?'<p class="hint">El stock se cambia con Entradas y Salidas, no acá.</p>':''}
+      <label class="campo" style="display:flex;gap:8px;align-items:center">
+        <input type="checkbox" id="a" ${p?.activo===false?'':'checked'} style="width:auto">
+        <span style="margin:0;letter-spacing:0;text-transform:none;font-size:14px;color:var(--espuma);font-family:var(--texto)">Activo</span></label>
+      <div class="fila-btn" style="justify-content:flex-end"><button class="btn btn-agua" id="ok">Guardar</button></div>`);
+    m.cuerpo.querySelector('#ok').onclick = async () => {
+      const g=id=>m.cuerpo.querySelector('#'+id);
+      const nombre=g('n').value.trim(); if (!nombre) return aviso('Escribí el nombre.','error');
+      const d={ tipo, nombre, costo:Number(g('costo').value)||0,
+        minimo:Number(g('minimo').value)||0, activo:g('a').checked };
+      if (tipo==='tienda') d.precio = Number(g('precio').value)||0;
+      if (!p) d.stock = Number(g('stock').value)||0;
+      try { await guardarProducto(p?.id,d); productos = await listarProductos(tipo); m.cerrar(); pintar(); aviso('Producto guardado.','ok'); }
+      catch(e){ aviso(e.message,'error'); }
+    };
+  }
+  $('#nuevo',vista)&&($('#nuevo',vista).onclick=()=>editor());
+  pintar();
+}
+
+// ---------- STOCK (saldos + movimientos) ----------
+MODULOS.stock = async function(vista) {
+  vista.innerHTML = `<div class="rejilla rejilla-3" id="alertas"></div>
+    <div class="tarjeta mt"><h3>Saldos actuales</h3><div id="saldos"></div></div>
+    <div class="tarjeta mt">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <h3 style="margin:0">Movimientos</h3>
+        <div class="fila-btn" style="margin-left:auto">
+          <input type="date" id="d" style="width:auto">
+          <input type="date" id="h" style="width:auto">
+          <button class="btn btn-chico" id="ver">Ver</button></div></div>
+      <div class="mt" id="movs"></div></div>`;
+
+  async function pintarSaldos() {
+    const [tienda, insumo] = await Promise.all([listarProductos('tienda'), listarProductos('insumo')]);
+    const todos = [...tienda.map(p=>({...p,_t:'Tienda'})), ...insumo.map(p=>({...p,_t:'Insumo'}))];
+    const agotados = todos.filter(p=>Number(p.stock||0)<=0).length;
+    const bajos = todos.filter(p=>{const s=Number(p.stock||0);return s>0&&s<=(p.minimo??3);}).length;
+    const valor = todos.reduce((s,p)=>s+Number(p.stock||0)*Number(p.costo||0),0);
+    $('#alertas',vista).innerHTML=[['Agotados',agotados,agotados?'var(--rojo)':'var(--espuma)'],
+      ['Stock bajo',bajos,bajos?'var(--cera)':'var(--espuma)'],['Valor en stock','Bs '+bs(valor),'var(--espuma)']]
+      .map(([k,v,c])=>`<div class="tarjeta"><div class="hint" style="font-family:var(--dato);font-size:10px;letter-spacing:.14em;text-transform:uppercase">${k}</div>
+        <div class="mono" style="font-size:24px;font-weight:600;margin-top:4px;color:${c}">${v}</div></div>`).join('');
+    $('#saldos',vista).innerHTML = todos.length ? `<div class="tabla-marco"><table>
+      <thead><tr><th>Producto</th><th>Tipo</th><th class="num">Costo</th><th class="num">Stock</th><th class="num">Valor</th><th>Estado</th></tr></thead>
+      <tbody>${todos.sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(p=>{
+        const st=Number(p.stock||0),min=p.minimo??3;
+        const et=st<=0?['rojo','Agotado']:st<=min?['cera','Bajo']:['verde','OK'];
+        return `<tr><td>${esc(p.nombre)}</td><td>${p._t}</td><td class="num">${bs(p.costo)}</td>
+          <td class="num" style="font-weight:600">${st}</td><td class="num">${bs(st*Number(p.costo||0))}</td>
+          <td><span class="etiqueta ${et[0]}">${et[1]}</span></td></tr>`;}).join('')}</tbody></table></div>`
+      : '<p class="hint">Sin productos cargados todavía.</p>';
+  }
+  async function pintarMovs() {
+    $('#movs',vista).innerHTML='<p class="vacio">Cargando…</p>';
+    const movs = await movimientosEntre($('#d',vista).value,$('#h',vista).value,500);
+    $('#movs',vista).innerHTML = movs.length ? `<div class="tabla-marco"><table>
+      <thead><tr><th>Fecha</th><th>Hora</th><th>Producto</th><th>Motivo</th><th class="num">Cant.</th>
+        <th class="num">Antes</th><th class="num">Después</th><th>Por</th></tr></thead>
+      <tbody>${movs.map(m=>`<tr><td class="mono">${fechaBO(m.fecha)}</td><td class="mono">${esc(m.hora)}</td>
+        <td>${esc(m.productoNombre)}</td>
+        <td><span class="etiqueta ${m.cantidad>=0?'verde':'cera'}">${esc(m.motivo)}</span></td>
+        <td class="num" style="color:${m.cantidad>=0?'var(--verde)':'var(--rojo)'}">${m.cantidad>=0?'+':''}${m.cantidad}</td>
+        <td class="num">${m.saldoAntes}</td><td class="num">${m.saldoDespues}</td>
+        <td>${esc(m.encargado||'—')}</td></tr>`).join('')}</tbody></table></div>`
+      : '<div class="vacio"><p>Sin movimientos en ese rango.</p></div>';
+  }
+  const hoy=hoyISO(), hace7=new Date(Date.now()-7*864e5).toISOString().slice(0,10);
+  $('#d',vista).value=hace7; $('#h',vista).value=hoy;
+  $('#ver',vista).onclick=pintarMovs;
+  await pintarSaldos(); await pintarMovs();
+};
+
+/* =========================================================
    MENÚ Y RUTEO
    ========================================================= */
 const TABS=[
@@ -1269,10 +1608,10 @@ const TABS=[
   {id:'egresos',nom:'Egresos',ico:'↓',v:'0.3'},
   {id:'aportes',nom:'Aportes y dev.',ico:'⇄',v:'0.3'},
   {grupo:'Tienda'},
-  {id:'venta',nom:'Venta snacks',ico:'⛁',v:'0.2'},
-  {id:'inventario',nom:'Inventario',ico:'▣',v:'0.2'},
-  {id:'stock',nom:'Stock',ico:'⚖',v:'0.2'},
-  {id:'insumos',nom:'Insumos limpieza',ico:'◍',v:'0.2'},
+  {id:'venta',nom:'Venta snacks',ico:'⛁',fn:'venta'},
+  {id:'inventario',nom:'Inventario',ico:'▣',fn:'inventario'},
+  {id:'stock',nom:'Stock',ico:'⚖',fn:'stock'},
+  {id:'insumos',nom:'Insumos limpieza',ico:'◍',fn:'insumos'},
   {grupo:'Personal'},
   {id:'bonos',nom:'Bonos',ico:'★',v:'0.4'},
   {id:'planillas',nom:'Planillas',ico:'▥',v:'0.4'},
