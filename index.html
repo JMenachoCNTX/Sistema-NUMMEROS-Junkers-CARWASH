@@ -12,18 +12,18 @@
    JUNKERS CAR WASH — Sistema interno (archivo único)
    ========================================================= */
 :root{
-  --asfalto:#0F1419; --panel:#19212B; --panel-alto:#222C39; --linea:#2E3A49;
-  --espuma:#E8EEF3; --tenue:#8C9AA8; --agua:#35B4E0; --agua-hondo:#1B6E8C;
-  --cera:#F0A93B; --verde:#3FC07A; --rojo:#E85C4F;
+  --asfalto:#000000; --panel:#0D0D0D; --panel-alto:#1A1A1A; --linea:#2A2A2A;
+  --espuma:#FFFFFF; --tenue:#8A8A8A; --agua:#FFFFFF; --agua-hondo:#2E2E2E;
+  --cera:#C9A227; --verde:#3FA46A; --rojo:#D64545;
   --display:'Archivo',system-ui,sans-serif; --texto:'Public Sans',system-ui,sans-serif;
   --dato:'IBM Plex Mono',ui-monospace,monospace; --r:10px; --r-s:6px;
-  --sombra:0 8px 24px rgba(0,0,0,.35);
+  --sombra:0 8px 24px rgba(0,0,0,.55);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:var(--asfalto);color:var(--espuma);font-family:var(--texto);font-size:15px;-webkit-font-smoothing:antialiased}
 body{overscroll-behavior:none}
 h1,h2,h3,h4{font-family:var(--display);font-weight:700;letter-spacing:-.01em}
-a{color:var(--agua)}
+a{color:var(--espuma);text-decoration:underline;text-underline-offset:2px}
 .mono{font-family:var(--dato);font-variant-numeric:tabular-nums}
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-thumb{background:var(--linea);border-radius:6px}
@@ -32,7 +32,7 @@ a{color:var(--agua)}
 
 /* LOGIN */
 .login{min-height:100dvh;display:grid;place-items:center;padding:24px;
-  background:radial-gradient(900px 500px at 50% -10%,rgba(53,180,224,.16),transparent 70%),var(--asfalto)}
+  background:radial-gradient(900px 500px at 50% -10%,rgba(255,255,255,.08),transparent 70%),var(--asfalto)}
 .login-caja{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--linea);
   border-radius:16px;padding:28px 24px 24px;box-shadow:var(--sombra)}
 .marca{font-family:var(--display);font-weight:900;font-size:30px;letter-spacing:-.03em;line-height:.95;text-align:center}
@@ -67,7 +67,7 @@ a{color:var(--agua)}
   background:transparent;color:var(--espuma);font-family:var(--texto);font-size:14px;text-align:left;
   cursor:pointer;text-decoration:none}
 .tab:hover{background:var(--panel-alto)}
-.tab.activa{background:var(--agua-hondo);color:#fff;font-weight:600}
+.tab.activa{background:var(--espuma);color:#000;font-weight:600}
 .tab.pendiente{color:var(--tenue);cursor:default}
 .tab.pendiente:hover{background:transparent}
 .tab-icono{width:18px;text-align:center;opacity:.85}
@@ -75,7 +75,7 @@ a{color:var(--agua)}
   border:1px solid var(--linea);border-radius:4px;padding:1px 4px}
 .rail-pie{padding:12px;border-top:1px solid var(--linea)}
 .usuario-chip{display:flex;align-items:center;gap:10px;padding:8px;border-radius:var(--r-s);background:var(--panel-alto)}
-.avatar{width:32px;height:32px;border-radius:8px;background:var(--agua-hondo);color:#fff;display:grid;
+.avatar{width:32px;height:32px;border-radius:8px;background:var(--espuma);color:#000;display:grid;
   place-items:center;font-family:var(--display);font-weight:700;font-size:13px}
 .usuario-nombre{font-size:13px;font-weight:600;line-height:1.2}
 .usuario-rol{font-family:var(--dato);font-size:10px;color:var(--tenue);text-transform:uppercase}
@@ -114,7 +114,7 @@ input:disabled,select:disabled{opacity:.5;cursor:not-allowed}
 .btn:hover{filter:brightness(1.18)}
 .btn:active{transform:translateY(1px)}
 .btn:disabled{opacity:.45;cursor:not-allowed}
-.btn-agua{background:var(--agua);border-color:var(--agua);color:#05222C}
+.btn-agua{background:var(--espuma);border-color:var(--espuma);color:#000}
 .btn-verde{background:var(--verde);border-color:var(--verde);color:#04240F}
 .btn-rojo{background:transparent;border-color:var(--rojo);color:var(--rojo)}
 .btn-chico{padding:6px 10px;font-size:12.5px}
@@ -124,7 +124,7 @@ input:disabled,select:disabled{opacity:.5;cursor:not-allowed}
   padding:3px 7px;border-radius:4px;border:1px solid var(--linea);color:var(--tenue)}
 .etiqueta.verde{color:var(--verde);border-color:rgba(63,192,122,.5);background:rgba(63,192,122,.1)}
 .etiqueta.cera{color:var(--cera);border-color:rgba(240,169,59,.5);background:rgba(240,169,59,.1)}
-.etiqueta.agua{color:var(--agua);border-color:rgba(53,180,224,.5);background:rgba(53,180,224,.1)}
+.etiqueta.agua{color:var(--espuma);border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.08)}
 .etiqueta.rojo{color:var(--rojo);border-color:rgba(232,92,79,.5);background:rgba(232,92,79,.1)}
 
 /* TABLAS */
@@ -134,7 +134,7 @@ thead th{position:sticky;top:0;background:var(--panel-alto);font-family:var(--da
   letter-spacing:.12em;text-transform:uppercase;color:var(--tenue);font-weight:500;text-align:left;
   padding:10px 12px;white-space:nowrap;border-bottom:1px solid var(--linea)}
 tbody td{padding:9px 12px;border-bottom:1px solid rgba(46,58,73,.5);vertical-align:middle}
-tbody tr:hover{background:rgba(53,180,224,.05)}
+tbody tr:hover{background:rgba(255,255,255,.04)}
 tbody tr:last-child td{border-bottom:0}
 td.num,th.num{text-align:right;font-family:var(--dato);font-variant-numeric:tabular-nums}
 
@@ -200,11 +200,13 @@ td.num,th.num{text-align:right;font-family:var(--dato);font-variant-numeric:tabu
 .logo-svg{display:block;width:100%;height:100%}
 .logo-nummeros{display:flex;align-items:center;height:34px}
 .logo-nummeros .logo-svg{height:100%;width:auto}
-.rail-cabecera{display:flex;justify-content:center}
-.rail-cabecera .logo-nummeros{height:36px}
-.login .logo-nummeros{height:56px;justify-content:center;margin-bottom:2px}
-.inst .logo-nummeros{height:30px;justify-content:center}
-.logo-junkers-chip{width:30px;height:30px;flex:none;display:flex}
+.rail-cabecera{display:flex;justify-content:center;padding:22px 18px 18px}
+.rail-cabecera .logo-nummeros{height:52px}
+.login .logo-nummeros{height:60px;justify-content:center;margin-bottom:2px}
+.inst .logo-nummeros{height:34px;justify-content:center}
+.logo-junkers-chip{width:34px;height:34px;flex:none;display:flex;align-items:center;justify-content:center;
+  background:var(--espuma);border-radius:8px;padding:3px}
+.logo-junkers-chip .logo-svg{width:100%;height:100%}
 .marca-junkers{display:flex;align-items:center;gap:10px}
 .marca-junkers .txt{font-family:var(--display);font-weight:800;font-size:15px;letter-spacing:-.01em}
 .marca-junkers .txt small{display:block;font-family:var(--dato);font-size:9px;font-weight:400;
