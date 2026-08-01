@@ -4,119 +4,1350 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0F1419">
-<title>Ingresar · Junkers Car Wash</title>
-<link rel="stylesheet" href="css/base.css">
+<title>Junkers Car Wash</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   JUNKERS CAR WASH — Sistema interno (archivo único)
+   ========================================================= */
+:root{
+  --asfalto:#0F1419; --panel:#19212B; --panel-alto:#222C39; --linea:#2E3A49;
+  --espuma:#E8EEF3; --tenue:#8C9AA8; --agua:#35B4E0; --agua-hondo:#1B6E8C;
+  --cera:#F0A93B; --verde:#3FC07A; --rojo:#E85C4F;
+  --display:'Archivo',system-ui,sans-serif; --texto:'Public Sans',system-ui,sans-serif;
+  --dato:'IBM Plex Mono',ui-monospace,monospace; --r:10px; --r-s:6px;
+  --sombra:0 8px 24px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--asfalto);color:var(--espuma);font-family:var(--texto);font-size:15px;-webkit-font-smoothing:antialiased}
+body{overscroll-behavior:none}
+h1,h2,h3,h4{font-family:var(--display);font-weight:700;letter-spacing:-.01em}
+a{color:var(--agua)}
+.mono{font-family:var(--dato);font-variant-numeric:tabular-nums}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--linea);border-radius:6px}
+::-webkit-scrollbar-track{background:transparent}
+:focus-visible{outline:2px solid var(--agua);outline-offset:2px}
+
+/* LOGIN */
+.login{min-height:100dvh;display:grid;place-items:center;padding:24px;
+  background:radial-gradient(900px 500px at 50% -10%,rgba(53,180,224,.16),transparent 70%),var(--asfalto)}
+.login-caja{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--linea);
+  border-radius:16px;padding:28px 24px 24px;box-shadow:var(--sombra)}
+.marca{font-family:var(--display);font-weight:900;font-size:30px;letter-spacing:-.03em;line-height:.95;text-align:center}
+.marca span{color:var(--agua)}
+.marca-sub{text-align:center;font-family:var(--dato);font-size:11px;letter-spacing:.28em;
+  text-transform:uppercase;color:var(--tenue);margin-top:8px}
+.pin-puntos{display:flex;justify-content:center;gap:14px;margin:26px 0 20px}
+.pin-punto{width:15px;height:15px;border-radius:50%;border:2px solid var(--linea);
+  transition:transform .12s,background .12s,border-color .12s}
+.pin-punto.lleno{background:var(--agua);border-color:var(--agua);transform:scale(1.15)}
+.pin-puntos.error{animation:sacudir .3s}
+.pin-puntos.error .pin-punto{border-color:var(--rojo);background:transparent}
+@keyframes sacudir{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.teclado{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tecla{height:58px;border:1px solid var(--linea);background:var(--panel-alto);color:var(--espuma);
+  border-radius:var(--r);font-family:var(--dato);font-size:21px;font-weight:500;cursor:pointer;
+  transition:background .1s,transform .06s}
+.tecla:active{transform:scale(.96);background:var(--agua-hondo)}
+.tecla.util{font-family:var(--texto);font-size:13px;color:var(--tenue)}
+
+/* ESTRUCTURA */
+.app{display:none;min-height:100dvh}
+.app.visible{display:grid;grid-template-columns:232px 1fr}
+.rail{background:var(--panel);border-right:1px solid var(--linea);display:flex;flex-direction:column;
+  height:100dvh;position:sticky;top:0}
+.rail-cabecera{padding:18px 18px 14px;border-bottom:1px solid var(--linea)}
+.rail-nav{flex:1;overflow-y:auto;padding:12px 10px 20px}
+.grupo-nav{font-family:var(--dato);font-size:10px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--tenue);padding:16px 10px 7px}
+.tab{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border:0;border-radius:var(--r-s);
+  background:transparent;color:var(--espuma);font-family:var(--texto);font-size:14px;text-align:left;
+  cursor:pointer;text-decoration:none}
+.tab:hover{background:var(--panel-alto)}
+.tab.activa{background:var(--agua-hondo);color:#fff;font-weight:600}
+.tab.pendiente{color:var(--tenue);cursor:default}
+.tab.pendiente:hover{background:transparent}
+.tab-icono{width:18px;text-align:center;opacity:.85}
+.tab-pronto{margin-left:auto;font-family:var(--dato);font-size:9px;letter-spacing:.1em;color:var(--tenue);
+  border:1px solid var(--linea);border-radius:4px;padding:1px 4px}
+.rail-pie{padding:12px;border-top:1px solid var(--linea)}
+.usuario-chip{display:flex;align-items:center;gap:10px;padding:8px;border-radius:var(--r-s);background:var(--panel-alto)}
+.avatar{width:32px;height:32px;border-radius:8px;background:var(--agua-hondo);color:#fff;display:grid;
+  place-items:center;font-family:var(--display);font-weight:700;font-size:13px}
+.usuario-nombre{font-size:13px;font-weight:600;line-height:1.2}
+.usuario-rol{font-family:var(--dato);font-size:10px;color:var(--tenue);text-transform:uppercase}
+.lienzo{min-width:0;display:flex;flex-direction:column}
+.barra{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:16px;padding:14px 22px;
+  background:rgba(15,20,25,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--linea)}
+.barra h1{font-size:19px}
+.barra-espacio{flex:1}
+.barra-dato{font-family:var(--dato);font-size:12px;color:var(--tenue);display:flex;gap:6px;align-items:center}
+.barra-dato b{color:var(--espuma);font-weight:600}
+.vista{padding:22px;flex:1}
+.vista-ancha{max-width:1180px}
+.btn-menu{display:none}
+
+/* PIEZAS */
+.tarjeta{background:var(--panel);border:1px solid var(--linea);border-radius:var(--r);padding:18px}
+.tarjeta h3{font-size:15px;margin-bottom:14px}
+.rejilla{display:grid;gap:14px}
+.rejilla-2{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.rejilla-3{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.rejilla-bahias{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla-registro{grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr)}
+@media (max-width:1020px){.rejilla-registro{grid-template-columns:1fr}}
+label.campo{display:block;margin-bottom:12px}
+label.campo>span{display:block;font-family:var(--dato);font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--tenue);margin-bottom:5px}
+input,select,textarea{width:100%;padding:10px 11px;background:var(--asfalto);border:1px solid var(--linea);
+  border-radius:var(--r-s);color:var(--espuma);font-family:var(--texto);font-size:14px}
+input:focus,select:focus,textarea:focus{border-color:var(--agua);outline:none}
+input[type=number],input.mono{font-family:var(--dato)}
+select{cursor:pointer}
+input:disabled,select:disabled{opacity:.5;cursor:not-allowed}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 16px;
+  border:1px solid var(--linea);border-radius:var(--r-s);background:var(--panel-alto);color:var(--espuma);
+  font-family:var(--texto);font-size:14px;font-weight:600;cursor:pointer;transition:filter .12s,transform .06s}
+.btn:hover{filter:brightness(1.18)}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-agua{background:var(--agua);border-color:var(--agua);color:#05222C}
+.btn-verde{background:var(--verde);border-color:var(--verde);color:#04240F}
+.btn-rojo{background:transparent;border-color:var(--rojo);color:var(--rojo)}
+.btn-chico{padding:6px 10px;font-size:12.5px}
+.btn-ancho{width:100%}
+.fila-btn{display:flex;gap:10px;flex-wrap:wrap}
+.etiqueta{display:inline-block;font-family:var(--dato);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  padding:3px 7px;border-radius:4px;border:1px solid var(--linea);color:var(--tenue)}
+.etiqueta.verde{color:var(--verde);border-color:rgba(63,192,122,.5);background:rgba(63,192,122,.1)}
+.etiqueta.cera{color:var(--cera);border-color:rgba(240,169,59,.5);background:rgba(240,169,59,.1)}
+.etiqueta.agua{color:var(--agua);border-color:rgba(53,180,224,.5);background:rgba(53,180,224,.1)}
+.etiqueta.rojo{color:var(--rojo);border-color:rgba(232,92,79,.5);background:rgba(232,92,79,.1)}
+
+/* TABLAS */
+.tabla-marco{overflow-x:auto;border:1px solid var(--linea);border-radius:var(--r)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+thead th{position:sticky;top:0;background:var(--panel-alto);font-family:var(--dato);font-size:10px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--tenue);font-weight:500;text-align:left;
+  padding:10px 12px;white-space:nowrap;border-bottom:1px solid var(--linea)}
+tbody td{padding:9px 12px;border-bottom:1px solid rgba(46,58,73,.5);vertical-align:middle}
+tbody tr:hover{background:rgba(53,180,224,.05)}
+tbody tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-family:var(--dato);font-variant-numeric:tabular-nums}
+
+/* BAHÍAS */
+.bahia{position:relative;background:var(--panel);border:1px solid var(--linea);border-radius:var(--r);
+  padding:16px;overflow:hidden}
+.bahia::before{content:'';position:absolute;inset:0 auto 0 0;width:4px;background:var(--linea)}
+.bahia.libre::before{background:var(--verde)}
+.bahia.ocupada::before{background:var(--cera)}
+.bahia.ocupada{border-color:rgba(240,169,59,.35)}
+.bahia-tope{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.bahia-nro{font-family:var(--display);font-weight:900;font-size:26px;line-height:1;letter-spacing:-.04em;color:var(--tenue)}
+.bahia.ocupada .bahia-nro{color:var(--espuma)}
+.lampara{width:9px;height:9px;border-radius:50%;background:var(--verde);margin-left:auto;flex:none}
+.bahia.ocupada .lampara{background:var(--cera);animation:latir 1.8s ease-in-out infinite}
+@keyframes latir{50%{opacity:.25}}
+.bahia-cliente{font-weight:600;font-size:15px}
+.bahia-servicio{font-size:12.5px;color:var(--tenue);margin-top:2px;line-height:1.35}
+.bahia-reloj{font-family:var(--dato);font-size:27px;font-weight:500;letter-spacing:-.02em;margin:12px 0 4px;
+  font-variant-numeric:tabular-nums}
+.bahia-vacia{color:var(--tenue);font-size:13px;padding:10px 0 14px}
+
+/* MODAL */
+.velo{position:fixed;inset:0;z-index:60;background:rgba(6,9,12,.75);display:grid;place-items:center;padding:18px}
+.modal{width:100%;max-width:520px;max-height:88dvh;overflow-y:auto;background:var(--panel);
+  border:1px solid var(--linea);border-radius:14px;padding:22px;box-shadow:var(--sombra)}
+.modal-tope{display:flex;align-items:center;margin-bottom:16px}
+.modal-tope h3{font-size:17px}
+.cerrar{margin-left:auto;background:none;border:0;color:var(--tenue);font-size:22px;line-height:1;cursor:pointer;padding:0 4px}
+
+/* AVISOS */
+.avisos{position:fixed;right:18px;bottom:18px;z-index:80;display:grid;gap:8px}
+.aviso{background:var(--panel-alto);border:1px solid var(--linea);border-left:3px solid var(--agua);
+  border-radius:var(--r-s);padding:11px 15px;font-size:13.5px;box-shadow:var(--sombra);animation:entrar .2s ease-out}
+.aviso.ok{border-left-color:var(--verde)}
+.aviso.error{border-left-color:var(--rojo)}
+@keyframes entrar{from{opacity:0;transform:translateY(8px)}}
+.vacio{text-align:center;padding:44px 20px;color:var(--tenue)}
+.vacio p{margin-bottom:14px}
+.hint{font-size:12.5px;color:var(--tenue);line-height:1.5}
+.mt{margin-top:14px}
+
+/* MÓVIL */
+@media (max-width:860px){
+  .app.visible{grid-template-columns:1fr}
+  .rail{position:fixed;inset:0 auto 0 0;z-index:50;width:250px;transform:translateX(-100%);transition:transform .2s ease-out}
+  .rail.abierto{transform:none;box-shadow:var(--sombra)}
+  .btn-menu{display:grid;place-items:center;width:36px;height:36px;background:var(--panel-alto);
+    border:1px solid var(--linea);border-radius:var(--r-s);color:var(--espuma);font-size:17px;cursor:pointer}
+  .vista{padding:14px}
+  .barra{padding:12px 14px}
+  .barra h1{font-size:16px}
+  .oculto-movil{display:none!important}
+}
+
+/* INSTALADOR */
+.inst{min-height:100dvh;padding:28px 18px;overflow-y:auto}
+.inst .caja{max-width:560px;margin:0 auto}
+.log{font-family:var(--dato);font-size:12px;background:var(--asfalto);border:1px solid var(--linea);
+  border-radius:8px;padding:12px;max-height:220px;overflow-y:auto;white-space:pre-wrap;margin-top:6px}
+</style>
 </head>
 <body>
 
-<main class="login">
+<!-- ================= LOGIN ================= -->
+<main class="login" id="pantalla-login" style="display:none">
   <div class="login-caja">
     <div class="marca">JUNKERS<br><span>CAR WASH</span></div>
     <div class="marca-sub">Sistema interno</div>
-
     <div style="margin-top:24px">
-      <label class="campo">
-        <span>Usuario</span>
-        <select id="usuario"><option>Cargando…</option></select>
-      </label>
+      <label class="campo"><span>Usuario</span>
+        <select id="login-usuario"><option>Cargando…</option></select></label>
     </div>
-
-    <div class="pin-puntos" id="puntos">
+    <div class="pin-puntos" id="login-puntos">
       <div class="pin-punto"></div><div class="pin-punto"></div>
       <div class="pin-punto"></div><div class="pin-punto"></div>
     </div>
-
-    <div class="teclado" id="teclado">
-      <button class="tecla" data-t="1">1</button>
-      <button class="tecla" data-t="2">2</button>
-      <button class="tecla" data-t="3">3</button>
-      <button class="tecla" data-t="4">4</button>
-      <button class="tecla" data-t="5">5</button>
-      <button class="tecla" data-t="6">6</button>
-      <button class="tecla" data-t="7">7</button>
-      <button class="tecla" data-t="8">8</button>
-      <button class="tecla" data-t="9">9</button>
-      <button class="tecla util" data-t="limpiar">Limpiar</button>
-      <button class="tecla" data-t="0">0</button>
-      <button class="tecla util" data-t="borrar">←</button>
+    <div class="teclado" id="login-teclado">
+      <button class="tecla" data-t="1">1</button><button class="tecla" data-t="2">2</button><button class="tecla" data-t="3">3</button>
+      <button class="tecla" data-t="4">4</button><button class="tecla" data-t="5">5</button><button class="tecla" data-t="6">6</button>
+      <button class="tecla" data-t="7">7</button><button class="tecla" data-t="8">8</button><button class="tecla" data-t="9">9</button>
+      <button class="tecla util" data-t="limpiar">Limpiar</button><button class="tecla" data-t="0">0</button><button class="tecla util" data-t="borrar">←</button>
     </div>
-
-    <p class="hint" id="mensaje" style="text-align:center;margin-top:16px;min-height:18px"></p>
+    <p class="hint" id="login-mensaje" style="text-align:center;margin-top:16px;min-height:18px"></p>
   </div>
 </main>
 
+<!-- ================= INSTALADOR ================= -->
+<main class="inst" id="pantalla-instalar" style="display:none">
+  <div class="caja">
+    <div class="marca" style="font-size:24px">JUNKERS <span>CW</span></div>
+    <div class="marca-sub">Instalación inicial</div>
+    <div class="tarjeta mt" style="margin-top:24px">
+      <h3>Paso 1 · Crear el administrador</h3>
+      <p class="hint" style="margin:-8px 0 14px">Se hace una sola vez. Después esta pantalla se bloquea sola.</p>
+      <label class="campo"><span>Nombre visible</span><input id="inst-n" placeholder="Biancka Gilarde"></label>
+      <label class="campo"><span>Usuario de acceso</span>
+        <input class="mono" id="inst-u" placeholder="biancka" style="text-transform:lowercase"></label>
+      <label class="campo"><span>PIN de 4 dígitos</span>
+        <input class="mono" id="inst-p" inputmode="numeric" maxlength="4" placeholder="1234"></label>
+      <button class="btn btn-agua btn-ancho" id="inst-b1">Crear administrador</button>
+    </div>
+    <div class="tarjeta mt">
+      <h3>Paso 2 · Cargar datos del Excel</h3>
+      <p class="hint" style="margin:-8px 0 14px">Clientes, vehículos, personal, las 60+ tarifas, las 8 bahías
+        y el correlativo (arranca en 1370). Se puede repetir sin duplicar.</p>
+      <button class="btn btn-ancho" id="inst-b2" disabled>Cargar datos iniciales</button>
+    </div>
+    <div class="tarjeta mt">
+      <h3>Registro</h3>
+      <div class="log" id="inst-log">Esperando…</div>
+      <button class="btn btn-ancho mt" id="inst-ir">Ir al sistema</button>
+    </div>
+  </div>
+</main>
+
+<!-- ================= APP ================= -->
+<div class="app" id="app">
+  <aside class="rail" id="rail">
+    <div class="rail-cabecera">
+      <div class="marca" style="font-size:19px;text-align:left">JUNKERS <span>CW</span></div>
+    </div>
+    <nav class="rail-nav" id="nav"></nav>
+    <div class="rail-pie">
+      <div class="usuario-chip">
+        <div class="avatar" id="avatar">–</div>
+        <div style="min-width:0">
+          <div class="usuario-nombre" id="quien">…</div>
+          <div class="usuario-rol" id="rol"></div>
+        </div>
+      </div>
+      <button class="btn btn-chico btn-ancho" id="salir" style="margin-top:8px">Cerrar sesión</button>
+    </div>
+  </aside>
+  <main class="lienzo">
+    <header class="barra">
+      <button class="btn-menu" id="menu" aria-label="Abrir menú">☰</button>
+      <h1 id="titulo">…</h1>
+      <div class="barra-espacio"></div>
+      <div class="barra-dato oculto-movil" id="estado"></div>
+    </header>
+    <section class="vista" id="vista"></section>
+  </main>
+</div>
+
 <script type="module">
-import { auth, db, collection, getDocs, query, where,
-         signInWithEmailAndPassword, correoDe, claveDe } from "./js/firebase.js";
+/* =========================================================
+   FIREBASE — configuración de Junkers Car Wash (ya cargada)
+   ========================================================= */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import {
+  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
+  createUserWithEmailAndPassword, updatePassword, EmailAuthProvider,
+  reauthenticateWithCredential, setPersistence, browserLocalPersistence
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import {
+  getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc,
+  deleteDoc, query, where, orderBy, limit, onSnapshot, runTransaction,
+  serverTimestamp, writeBatch
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-const $usuario = document.getElementById('usuario');
-const $puntos  = document.getElementById('puntos');
-const $mensaje = document.getElementById('mensaje');
-let pin = '', ocupado = false;
+const firebaseConfig = {
+  apiKey: "AIzaSyB4gofdWtTLpEGFybVoiKevQR_T7vNq_gk",
+  authDomain: "sistema-contax-junkers-carwash.firebaseapp.com",
+  projectId: "sistema-contax-junkers-carwash",
+  storageBucket: "sistema-contax-junkers-carwash.firebasestorage.app",
+  messagingSenderId: "215616361609",
+  appId: "1:215616361609:web:b673e63fa924ff3f286258"
+};
 
-function pintar() {
-  [...$puntos.children].forEach((p, i) => p.classList.toggle('lleno', i < pin.length));
+const DOMINIO = "junkers.local";
+const PREFIJO = "JKW-";
+const correoDe = u => `${String(u).trim().toLowerCase()}@${DOMINIO}`;
+const claveDe  = p => `${PREFIJO}${String(p).trim()}`;
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+await setPersistence(auth, browserLocalPersistence);
+
+/* =========================================================
+   UTILIDADES
+   ========================================================= */
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c =>
+  ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const bs = n => Number(n || 0).toLocaleString('es-BO', { minimumFractionDigits:2, maximumFractionDigits:2 });
+const hoyISO = () => { const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const fechaBO = iso => { if(!iso) return '—'; const [a,m,d]=iso.split('-'); return `${d}/${m}/${a}`; };
+const horaAhora = () => new Date().toTimeString().slice(0,8);
+const diaSemana = iso => { const dd=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const [a,m,d]=iso.split('-').map(Number); return dd[new Date(a,m-1,d).getDay()]; };
+const reloj = seg => { seg=Math.max(0,Math.floor(seg)); const h=Math.floor(seg/3600),
+  m=Math.floor(seg%3600/60),s=seg%60; return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; };
+const nroControl = () => { const L='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  return L[Math.random()*26|0]+L[Math.random()*26|0]+String(Math.floor(Math.random()*1e8)).padStart(8,'0'); };
+const iniciales = n => String(n||'?').trim().split(/\s+/).slice(0,2).map(p=>p[0]).join('').toUpperCase();
+const opciones = (lista, sel) => lista.map(v =>
+  `<option value="${esc(v)}"${v===sel?' selected':''}>${esc(v)}</option>`).join('');
+
+function aviso(texto, tipo='') {
+  let caja = $('.avisos');
+  if (!caja) { caja = document.createElement('div'); caja.className='avisos'; document.body.append(caja); }
+  const el = document.createElement('div'); el.className = `aviso ${tipo}`; el.textContent = texto;
+  caja.append(el); setTimeout(() => el.remove(), 3600);
 }
-function fallar(txt) {
-  $mensaje.textContent = txt;
-  $puntos.classList.add('error');
-  setTimeout(() => $puntos.classList.remove('error'), 320);
-  pin = ''; pintar();
+function modal(titulo, html, { ancho=520 } = {}) {
+  const velo = document.createElement('div'); velo.className='velo';
+  velo.innerHTML = `<div class="modal" style="max-width:${ancho}px" role="dialog" aria-modal="true">
+    <div class="modal-tope"><h3>${esc(titulo)}</h3><button class="cerrar" aria-label="Cerrar">×</button></div>
+    <div class="modal-cuerpo">${html}</div></div>`;
+  const cerrar = () => velo.remove();
+  velo.querySelector('.cerrar').onclick = cerrar;
+  velo.onclick = e => { if (e.target === velo) cerrar(); };
+  addEventListener('keydown', function ce(e){ if(e.key==='Escape'){cerrar();removeEventListener('keydown',ce);} });
+  document.body.append(velo);
+  velo.querySelector('input,select,textarea,button')?.focus();
+  return { cuerpo: velo.querySelector('.modal-cuerpo'), cerrar };
+}
+function confirmar(texto, textoBoton='Confirmar') {
+  return new Promise(res => {
+    const m = modal('Confirmar', `<p style="margin-bottom:18px;line-height:1.5">${esc(texto)}</p>
+      <div class="fila-btn" style="justify-content:flex-end">
+        <button class="btn" data-no>Cancelar</button>
+        <button class="btn btn-rojo" data-si>${esc(textoBoton)}</button></div>`, { ancho:400 });
+    m.cuerpo.querySelector('[data-no]').onclick = () => { m.cerrar(); res(false); };
+    m.cuerpo.querySelector('[data-si]').onclick = () => { m.cerrar(); res(true); };
+  });
 }
 
-// Directorio público: solo nombre visible y usuario de acceso.
-try {
-  const snap = await getDocs(query(collection(db, 'directorio'), where('activo', '==', true)));
-  const filas = snap.docs.map(d => d.data()).sort((a, b) => a.nombre.localeCompare(b.nombre));
-  if (!filas.length) {
-    $usuario.innerHTML = '<option value="">Sin usuarios creados</option>';
-    $mensaje.textContent = 'Abrí scripts/crear-admin.html para crear el primer administrador.';
-  } else {
-    $usuario.innerHTML = filas
-      .map(u => `<option value="${u.usuario}">${u.nombre}</option>`).join('');
-    const ultimo = localStorage.getItem('jk_ultimo_usuario');
-    if (ultimo && filas.some(u => u.usuario === ultimo)) $usuario.value = ultimo;
-  }
-} catch (e) {
-  $usuario.innerHTML = '<option value="">Sin conexión</option>';
-  $mensaje.textContent = 'No se pudo leer el directorio. Revisá js/firebase-config.js.';
-  console.error(e);
+/* =========================================================
+   DATOS INICIALES (del Excel)
+   ========================================================= */
+const SEMILLA_CLIENTES = [
+  {nombre:'EXTERNOS',orden:1},{nombre:'JUNKERS',orden:2},{nombre:'YANGO',orden:3},
+  {nombre:'POLICIA',orden:4},{nombre:'MTG',orden:5},{nombre:'CAFETERIA',orden:6}
+];
+const SEMILLA_VEHICULOS = [
+  {nombre:'MOTO',clasificacion:'MOTO',orden:1},{nombre:'TAXI',clasificacion:'AUTO',orden:2},
+  {nombre:'AUTO',clasificacion:'AUTO',orden:3},{nombre:'JEEP',clasificacion:'AUTO',orden:4},
+  {nombre:'VAGONETA',clasificacion:'AUTO',orden:5},{nombre:'CAMIONETA',clasificacion:'AUTO',orden:6},
+  {nombre:'CAMION',clasificacion:'AUTO',orden:7}
+];
+const SEMILLA_PERSONAL = [
+  {nombre:'ANTONIO',modoPago:'45%',orden:1},{nombre:'FABIAN',modoPago:'45%',orden:2},
+  {nombre:'JUAN PABLO',modoPago:'diario+bono',orden:3},{nombre:'SOLEDAD',modoPago:'diario+bono',orden:4}
+];
+const T = [
+  ['MOTO','MTG','LAVADO SIMPLE -30%',21],['MOTO','JUNKERS','LAVADO SIMPLE -30%',21],
+  ['MOTO','JUNKERS','LAVADO SIMPLE',10],['MOTO','JUNKERS','LAVADO + ENCERADO SIMPLE -30%',35],
+  ['MOTO','JUNKERS','LAVADO + ENCERADO',50],['MOTO','CAFETERIA','LAVADO EXPRESS',15,9],
+  ['MOTO','YANGO','LAVADO SIMPLE',12],['MOTO','YANGO','LAVADO + ENCERADO',32],
+  ['MOTO','EXTERNOS','LAVADO SIMPLE',30],['MOTO','EXTERNOS','LAVADO + ENCERADO',50],
+  ['MOTO','EXTERNOS','LAVADO + PULIDO',80],
+  ['TAXI','JUNKERS','LAVADO EXPRES',15],['TAXI','JUNKERS','LAVADO EXPRES + ASPIRADO',20],
+  ['TAXI','JUNKERS','LAVADO EXPRESS + ASPIRADO L,M,M',21],['TAXI','JUNKERS','LAVADO SIMPLE J,V,S',16],
+  ['TAXI','JUNKERS','LAVADO + ASPIRADO+SILICONA',36],['TAXI','JUNKERS','LAVADO + ASPIRADO + ENCERADO',66],
+  ['TAXI','JUNKERS','LAVADO P/+ MOTOR',70],['TAXI','JUNKERS','LAVADO GRATIS POR SORTEO',0],
+  ['TAXI','YANGO','LAVADO SIMPLE',19],['TAXI','YANGO','LAVADO SIMPLE + ASPIRADO+SILICONA',39],
+  ['TAXI','EXTERNOS','LAVADO SIMPLE',30],['TAXI','EXTERNOS','LAVADO DE MOTOR',40],
+  ['TAXI','EXTERNOS','LAVADO + ASPIRADO',40],['TAXI','EXTERNOS','LAVADO + ENCERADO',50],
+  ['AUTO','EXTERNOS','LAVADO SIMPLE',30],['AUTO','EXTERNOS','LAVADO MEDIO',40],
+  ['AUTO','EXTERNOS','LAVADO PREMIUM',50],['AUTO','EXTERNOS','LAVADO DE MOTOR',50],
+  ['AUTO','EXTERNOS','LAVADO + LAVADO DE MOTOR',80],['AUTO','EXTERNOS','LAVADO + ENCERADO',100],
+  ['AUTO','EXTERNOS','LIMPIEZA DE LLANTAS',30],
+  ['AUTO','EXTERNOS','LAVADO PREMIUM + LAVADO DE ASIENTOS + CHASIS',200],
+  ['AUTO','EXTERNOS','PULIDA',300],['AUTO','EXTERNOS','LAVADO + FUMIGADO',390],
+  ['AUTO','POLICIA','LAVADO SIMPLE + ASPIRADO',30],['AUTO','POLICIA','LAVADO+ASPIRADO+MOTOR',45],
+  ['AUTO','POLICIA','LAVADO+ASPIRADO+MOTOR+CHASIS',70],
+  ['JEEP','EXTERNOS','LAVADO SIMPLE',40],['JEEP','EXTERNOS','LAVADO MEDIO',50],
+  ['JEEP','EXTERNOS','LAVADO PREMIUM',60],['JEEP','EXTERNOS','LAVADO + FUMIGADO',90],
+  ['JEEP','EXTERNOS','LAVADO + LAVADO DE MOTOR',90],['JEEP','EXTERNOS','LAVADO+ENCERADO + LAVADO DE MOTOR',140],
+  ['JEEP','EXTERNOS','PULIDO',300],
+  ['VAGONETA','EXTERNOS','LAVADO SIMPLE',50],['VAGONETA','EXTERNOS','LAVADO MEDIO',60],
+  ['VAGONETA','EXTERNOS','LAVADO PREMIUM',70],['VAGONETA','EXTERNOS','LAVADO + FUMIGADO',100],
+  ['VAGONETA','EXTERNOS','LAVADO + LAVADO DE MOTOR',110],['VAGONETA','EXTERNOS','LAVADO + ENCERADO',110],
+  ['VAGONETA','EXTERNOS','LAVADO PREMIUM Y CHASIS',120],['VAGONETA','EXTERNOS','LAVADO PREMIUM + LAVADO DE TECHO',120],
+  ['VAGONETA','EXTERNOS','LAVADO EXTRA PREMIUM',130],['VAGONETA','EXTERNOS','LAVADO + LAVADO DE MOTOR + LAVADO CHASIS',140],
+  ['VAGONETA','EXTERNOS','LAVADO Y LIMPIEZA INTERIOR Y EXTERIOR',200],
+  ['VAGONETA','EXTERNOS','LAVADO PREMIUM + MOTOR + CHASIS + ENCERADO',260],
+  ['CAMIONETA','EXTERNOS','LAVADO SIMPLE / SOLO POR FUERA',40],['CAMIONETA','EXTERNOS','LAVADO MEDIO',70],
+  ['CAMIONETA','EXTERNOS','LAVADO PREMIUM',80],['CAMIONETA','EXTERNOS','LAVADO P + CHASIS',100],
+  ['CAMIONETA','EXTERNOS','LAVADO P + ENCERADO',120],['CAMIONETA','EXTERNOS','LAVADO P + MOTOR',130],
+  ['CAMIONETA','EXTERNOS','LAVADO PREMIUM Y CHASIS',150],['CAMIONETA','EXTERNOS','LAVADO + LAVADO DE MOTOR + LAVADO CHASIS',160],
+  ['CAMIONETA','EXTERNOS','LAVADO P + CHASIS Y ENCERADO',200],['CAMIONETA','EXTERNOS','LAVADO P + MOTOR + ENCERADO + CUERO',230],
+  ['CAMIONETA','EXTERNOS','LAVADO P + QUITADO DE MANCHAS + ENCERADO',250],['CAMIONETA','EXTERNOS','PULIDO',500],
+  ['CAMIONETA','EXTERNOS','LAVADO INTEGRAL (ASIENTOS, ALFOMBRAS, PISOS, TECHOS, PULIDO, ENCERADO)',1000],
+  ['CAMIONETA','POLICIA','LAVADO SIMPLE',38],['CAMIONETA','POLICIA','LAVADO + LAVADO DE MOTOR',65],
+  ['CAMION','EXTERNOS','LAVADO + LAVADO DE MOTOR',160]
+];
+const SEMILLA_PRECIOS = T.map(([tipoVehiculo,cliente,servicio,tarifa,promo=null]) =>
+  ({ tipoVehiculo, cliente, servicio, tarifa, promo, activo:true }));
+const SEMILLA_CONFIG = {
+  negocio:'JUNKERS CAR WASH', direccion:'Av. Alemana entre 6to y 7mo anillo',
+  whatsapp:'+591 626-68729', correo:'junkerspartner@gmail.com',
+  bonoAuto:5, bonoMoto:3, comision:0.45
+};
+const CORRELATIVO_INICIAL = 1369;
+
+/* =========================================================
+   CAPA DE DATOS
+   ========================================================= */
+const BAHIAS = 8;
+const sesion = { uid:null, nombre:'', usuario:'', rol:'cajero' };
+const esAdmin = () => sesion.rol === 'admin';
+const puedeCobrar = () => sesion.rol === 'admin' || sesion.rol === 'cajero';
+
+async function cargarSesion(uid) {
+  const s = await getDoc(doc(db,'usuarios',uid));
+  if (!s.exists()) throw new Error('sin-perfil');
+  const d = s.data();
+  if (d.activo === false) throw new Error('inactivo');
+  Object.assign(sesion, { uid, nombre:d.nombre, usuario:d.usuario, rol:d.rol||'cajero' });
+  return sesion;
+}
+const cacheCat = {};
+async function catalogo(nombre, forzar=false) {
+  if (!forzar && cacheCat[nombre]) return cacheCat[nombre];
+  const snap = await getDocs(collection(db,'catalogos',nombre,'items'));
+  cacheCat[nombre] = snap.docs.map(d=>({id:d.id,...d.data()}))
+    .sort((a,b)=>(a.orden??99)-(b.orden??99)||a.nombre.localeCompare(b.nombre));
+  return cacheCat[nombre];
+}
+const catalogoActivos = async n => (await catalogo(n)).filter(i=>i.activo!==false);
+const guardarItem = (cat,id,d) => setDoc(doc(db,'catalogos',cat,'items',id),d,{merge:true});
+const nuevoItem   = (cat,d) => addDoc(collection(db,'catalogos',cat,'items'),d);
+const borrarItem  = (cat,id) => deleteDoc(doc(db,'catalogos',cat,'items',id));
+const limpiarCache= cat => { if(cat) delete cacheCat[cat]; else Object.keys(cacheCat).forEach(k=>delete cacheCat[k]); };
+
+let cachePrecios = null;
+async function precios(forzar=false) {
+  if (cachePrecios && !forzar) return cachePrecios;
+  const snap = await getDocs(collection(db,'precios'));
+  cachePrecios = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>
+    a.tipoVehiculo.localeCompare(b.tipoVehiculo)||a.cliente.localeCompare(b.cliente)||(a.tarifa-b.tarifa));
+  return cachePrecios;
+}
+const guardarPrecio = (id,d) => id ? setDoc(doc(db,'precios',id),d,{merge:true}) : addDoc(collection(db,'precios'),d);
+const borrarPrecio = id => deleteDoc(doc(db,'precios',id));
+const invalidarPrecios = () => { cachePrecios = null; };
+
+async function siguienteOrden() {
+  const ref = doc(db,'contadores','ordenes');
+  return runTransaction(db, async t => {
+    const s = await t.get(ref);
+    const n = (s.exists() ? s.data().ultimo||0 : 0) + 1;
+    t.set(ref, { ultimo:n }, { merge:true });
+    return n;
+  });
+}
+const refBahia = n => doc(db,'bahias',String(n));
+const escucharBahias = cb => onSnapshot(collection(db,'bahias'), s => cb(s.docs.map(d=>({id:d.id,...d.data()}))));
+async function inicializarBahias() {
+  const b = writeBatch(db);
+  for (let i=1;i<=BAHIAS;i++) b.set(refBahia(i),{nro:i,estado:'DISPONIBLE',ordenId:null},{merge:true});
+  await b.commit();
+}
+const nuevaOrden  = d => addDoc(collection(db,'ordenes'),{...d,creadoEn:serverTimestamp()});
+const editarOrden = (id,d) => updateDoc(doc(db,'ordenes',id),d);
+const borrarOrden = id => deleteDoc(doc(db,'ordenes',id));
+function escucharOrdenesDelDia(fecha, cb) {
+  return onSnapshot(query(collection(db,'ordenes'),where('fecha','==',fecha)), s =>
+    cb(s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.hora.localeCompare(a.hora))));
+}
+async function ordenesEntre(desde, hasta, max=1000) {
+  const s = await getDocs(query(collection(db,'ordenes'),
+    where('fecha','>=',desde),where('fecha','<=',hasta),orderBy('fecha','desc'),limit(max)));
+  return s.docs.map(d=>({id:d.id,...d.data()}));
+}
+async function listarUsuarios() {
+  const s = await getDocs(collection(db,'usuarios'));
+  return s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+}
+const escribirUsuario = (uid,d) => setDoc(doc(db,'usuarios',uid),d,{merge:true});
+const escribirDirectorio = (uid,d) => setDoc(doc(db,'directorio',uid),d,{merge:true});
+async function eliminarUsuario(uid) { await deleteDoc(doc(db,'directorio',uid)); await deleteDoc(doc(db,'usuarios',uid)); }
+async function config() {
+  const s = await getDoc(doc(db,'config','general'));
+  return s.exists() ? s.data() : SEMILLA_CONFIG;
+}
+const guardarConfig = d => setDoc(doc(db,'config','general'),d,{merge:true});
+
+/* =========================================================
+   PANTALLAS: login / instalador / app
+   ========================================================= */
+const P_LOGIN = $('#pantalla-login');
+const P_INST  = $('#pantalla-instalar');
+const P_APP   = $('#app');
+let cfgRecibo = null;
+
+function mostrar(cual) {
+  P_LOGIN.style.display = cual==='login' ? '' : 'none';
+  P_INST.style.display  = cual==='instalar' ? '' : 'none';
+  P_APP.classList.toggle('visible', cual==='app');
 }
 
-async function entrar() {
-  if (ocupado) return;
-  const usuario = $usuario.value;
-  if (!usuario) return fallar('Elegí un usuario.');
-  ocupado = true;
-  $mensaje.textContent = 'Verificando…';
+// ---- LOGIN ----
+async function iniciarLogin() {
+  mostrar('login');
+  const $u = $('#login-usuario'), $puntos = $('#login-puntos'), $msg = $('#login-mensaje');
+  let pin='', ocupado=false;
+  const pintar = () => [...$puntos.children].forEach((p,i)=>p.classList.toggle('lleno',i<pin.length));
+  const fallar = txt => { $msg.textContent=txt; $puntos.classList.add('error');
+    setTimeout(()=>$puntos.classList.remove('error'),320); pin=''; pintar(); };
+
   try {
-    await signInWithEmailAndPassword(auth, correoDe(usuario), claveDe(pin));
-    localStorage.setItem('jk_ultimo_usuario', usuario);
-    location.replace('app.html');
-  } catch (e) {
-    ocupado = false;
-    if (e.code === 'auth/too-many-requests') fallar('Demasiados intentos. Esperá un momento.');
-    else fallar('PIN incorrecto.');
+    const snap = await getDocs(query(collection(db,'directorio'),where('activo','==',true)));
+    const filas = snap.docs.map(d=>d.data()).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+    if (!filas.length) { mostrar('instalar'); iniciarInstalador(); return; }
+    $u.innerHTML = filas.map(u=>`<option value="${esc(u.usuario)}">${esc(u.nombre)}</option>`).join('');
+    const ult = localStorage.getItem('jk_ultimo');
+    if (ult && filas.some(u=>u.usuario===ult)) $u.value = ult;
+  } catch(e) {
+    $u.innerHTML = '<option value="">Sin conexión</option>';
+    $msg.textContent = 'No se pudo leer el directorio. Revisá las reglas de Firestore.';
+    console.error(e);
   }
+
+  async function entrar() {
+    if (ocupado) return;
+    if (!$u.value) return fallar('Elegí un usuario.');
+    ocupado = true; $msg.textContent = 'Verificando…';
+    try {
+      await signInWithEmailAndPassword(auth, correoDe($u.value), claveDe(pin));
+      localStorage.setItem('jk_ultimo', $u.value);
+    } catch(e) {
+      ocupado = false;
+      fallar(e.code==='auth/too-many-requests' ? 'Demasiados intentos. Esperá un momento.' : 'PIN incorrecto.');
+    }
+  }
+  function marcar(t) {
+    if (ocupado) return;
+    if (t==='borrar') pin=pin.slice(0,-1);
+    else if (t==='limpiar') pin='';
+    else if (pin.length<4) { pin+=t; $msg.textContent=''; }
+    pintar();
+    if (pin.length===4) entrar();
+  }
+  $('#login-teclado').onclick = e => { const b=e.target.closest('.tecla'); if(b) marcar(b.dataset.t); };
+  document._loginKey && removeEventListener('keydown', document._loginKey);
+  document._loginKey = e => {
+    if (P_LOGIN.style.display==='none') return;
+    if (/^[0-9]$/.test(e.key)) marcar(e.key);
+    else if (e.key==='Backspace') marcar('borrar');
+    else if (e.key==='Enter' && pin.length===4) entrar();
+  };
+  addEventListener('keydown', document._loginKey);
 }
 
-function marcar(t) {
-  if (ocupado) return;
-  if (t === 'borrar') pin = pin.slice(0, -1);
-  else if (t === 'limpiar') pin = '';
-  else if (pin.length < 4) { pin += t; $mensaje.textContent = ''; }
+// ---- INSTALADOR ----
+async function iniciarInstalador() {
+  const log = t => { $('#inst-log').textContent += '\n'+t; $('#inst-log').scrollTop=1e6; };
+  $('#inst-log').textContent = 'Esperando…';
+  const yaInst = (await getDoc(doc(db,'config','instalacion'))).exists();
+  if (yaInst) {
+    $('#inst-b1').disabled = true; $('#inst-b1').textContent = 'Ya hay un administrador';
+    $('#inst-b2').disabled = false;
+    log('El sistema ya está instalado. Iniciá sesión como admin para cargar datos.');
+  }
+  $('#inst-ir').onclick = () => { location.reload(); };
+
+  $('#inst-b1').onclick = async () => {
+    const nombre = $('#inst-n').value.trim();
+    const usuario = $('#inst-u').value.trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+    const pin = $('#inst-p').value.trim();
+    if (!nombre || usuario.length<3 || !/^\d{4}$/.test(pin))
+      return log('✕ Revisá nombre, usuario (3+ letras) y PIN (4 dígitos).');
+    $('#inst-b1').disabled = true;
+    try {
+      log('· Creando cuenta…');
+      let uid;
+      try { const c = await createUserWithEmailAndPassword(auth, correoDe(usuario), claveDe(pin)); uid=c.user.uid; }
+      catch(e) {
+        if (e.code!=='auth/email-already-in-use') throw e;
+        log('· La cuenta ya existía, iniciando sesión…');
+        const c = await signInWithEmailAndPassword(auth, correoDe(usuario), claveDe(pin)); uid=c.user.uid;
+      }
+      log('· Guardando perfil…');
+      await setDoc(doc(db,'usuarios',uid),{nombre,usuario,rol:'admin',activo:true,creadoEn:serverTimestamp()});
+      await setDoc(doc(db,'directorio',uid),{nombre,usuario,activo:true});
+      await setDoc(doc(db,'config','instalacion'),{listo:true,fecha:serverTimestamp()});
+      log('✓ Administrador listo: '+nombre);
+      $('#inst-b2').disabled = false;
+    } catch(e) { $('#inst-b1').disabled=false; log('✕ '+(e.code||'')+' '+e.message); }
+  };
+
+  $('#inst-b2').onclick = async () => {
+    if (!auth.currentUser) return log('✕ Creá primero el administrador (paso 1).');
+    $('#inst-b2').disabled = true;
+    try {
+      await sembrarCat('clientes', SEMILLA_CLIENTES, log);
+      await sembrarCat('vehiculos', SEMILLA_VEHICULOS, log);
+      await sembrarCat('personal', SEMILLA_PERSONAL, log);
+      log('· Tarifario…');
+      const ya = await getDocs(collection(db,'precios'));
+      const claves = new Set(ya.docs.map(d=>{const p=d.data();return `${p.tipoVehiculo}|${p.cliente}|${p.servicio}`;}));
+      let b=writeBatch(db),n=0,total=0;
+      for (const p of SEMILLA_PRECIOS) {
+        const k=`${p.tipoVehiculo}|${p.cliente}|${p.servicio}`;
+        if (claves.has(k)) continue;
+        b.set(doc(collection(db,'precios')),p); total++;
+        if (++n===400){await b.commit();b=writeBatch(db);n=0;}
+      }
+      if (n) await b.commit();
+      log(`✓ Tarifario: ${total} nuevas, ${claves.size} ya estaban.`);
+      log('· Bahías…');
+      const bb=writeBatch(db);
+      for (let i=1;i<=8;i++) bb.set(doc(db,'bahias',String(i)),{nro:i,estado:'DISPONIBLE',ordenId:null},{merge:true});
+      await bb.commit(); log('✓ 8 bahías listas.');
+      const c = await getDoc(doc(db,'contadores','ordenes'));
+      if (!c.exists()) { await setDoc(doc(db,'contadores','ordenes'),{ultimo:CORRELATIVO_INICIAL});
+        log('✓ Correlativo en '+CORRELATIVO_INICIAL+' (próxima orden: '+(CORRELATIVO_INICIAL+1)+').'); }
+      else log('· Correlativo ya existía en '+c.data().ultimo+'.');
+      await setDoc(doc(db,'config','general'),SEMILLA_CONFIG,{merge:true});
+      log('✓ Datos del negocio guardados.\n\n✓ Todo listo. Tocá "Ir al sistema".');
+    } catch(e) { log('✕ '+(e.code||'')+' '+e.message); }
+    finally { $('#inst-b2').disabled=false; }
+  };
+}
+async function sembrarCat(cat, items, log) {
+  log('· '+cat+'…');
+  const ya = await getDocs(collection(db,'catalogos',cat,'items'));
+  const nombres = new Set(ya.docs.map(d=>d.data().nombre));
+  const b = writeBatch(db); let n=0;
+  for (const it of items) { if (nombres.has(it.nombre)) continue;
+    b.set(doc(collection(db,'catalogos',cat,'items')),{...it,activo:true}); n++; }
+  if (n) await b.commit();
+  log(`✓ ${cat}: ${n} nuevos, ${nombres.size} ya estaban.`);
+}
+
+/* =========================================================
+   RECIBO
+   ========================================================= */
+async function verRecibo(o) {
+  if (!o) return;
+  cfgRecibo ??= await config();
+  const linea = (k,v) => `<div style="display:flex;gap:10px;padding:3px 0">
+    <span style="color:#666;flex:none;width:104px">${k}</span>
+    <span style="flex:1;font-weight:600;word-break:break-word">${esc(v??'—')}</span></div>`;
+  const html = `<div id="recibo" style="background:#fff;color:#111;padding:18px;border-radius:8px;
+    font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.45">
+    <div style="text-align:center;border-bottom:2px dashed #bbb;padding-bottom:10px;margin-bottom:10px">
+      <div style="font-weight:600;font-size:15px;letter-spacing:.06em">${esc(cfgRecibo.negocio)}</div>
+      <div style="color:#666;font-size:10px;margin-top:3px">${esc(cfgRecibo.direccion)}</div>
+      <div style="color:#666;font-size:10px">WhatsApp: ${esc(cfgRecibo.whatsapp)}</div></div>
+    <div style="text-align:center;font-weight:600;letter-spacing:.2em;font-size:10px;color:#666">RECIBO</div>
+    <div style="text-align:center;font-size:11px;margin:4px 0 12px">Nro control ${esc(o.nroControl)}</div>
+    ${linea('Nro orden',o.nro)}${linea('Fecha',fechaBO(o.fecha))}${linea('Hora',o.hora)}
+    <div style="border-top:1px dashed #ccc;margin:8px 0"></div>
+    ${linea('Cliente',o.cliente)}${linea('Nombre',o.nombre)}${linea('Vehículo',o.tipoVehiculo)}
+    ${linea('Placa',o.placa)}${linea('Modelo',o.modelo)}
+    <div style="border-top:1px dashed #ccc;margin:8px 0"></div>
+    ${linea('Servicio',o.servicio)}${linea('Atención',o.atencion||'—')}${linea('Encargado',o.encargado)}
+    ${linea('Pago',o.tipoPago)}
+    <div style="border-top:2px dashed #bbb;margin:10px 0 8px"></div>
+    <div style="display:flex;font-size:17px;font-weight:600"><span>TOTAL</span>
+      <span style="margin-left:auto">Bs ${bs(o.tarifa)}</span></div>
+    <div style="text-align:center;color:#666;font-size:10px;margin-top:14px">¡Gracias por su visita!</div></div>
+    <div class="fila-btn mt" style="justify-content:flex-end"><button class="btn" id="imprimir">Imprimir</button></div>`;
+  const m = modal(`Orden ${o.nro}`, html, { ancho:380 });
+  m.cuerpo.querySelector('#imprimir').onclick = () => {
+    const w = open('','_blank','width=420,height=680');
+    w.document.write(`<html><head><title>Recibo ${o.nro}</title>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap">
+      <style>body{margin:0;padding:8px;background:#fff}</style></head>
+      <body>${m.cuerpo.querySelector('#recibo').outerHTML}</body></html>`);
+    w.document.close(); setTimeout(()=>w.print(),400);
+  };
+}
+
+/* =========================================================
+   MÓDULOS (una función por pestaña)
+   ========================================================= */
+const MODULOS = {};
+
+// ---------- REGISTRO ----------
+MODULOS.registro = async function(vista) {
+  const [clientes, vehiculos, personal, tarifas] = await Promise.all([
+    catalogoActivos('clientes'), catalogoActivos('vehiculos'), catalogoActivos('personal'), precios()
+  ]);
+  if (!clientes.length || !vehiculos.length) {
+    vista.innerHTML = `<div class="vacio"><p>Todavía no hay listas cargadas.</p>
+      <p class="hint">Un administrador tiene que correr la instalación de datos.</p></div>`;
+    return;
+  }
+  vista.innerHTML = `<div class="vista-ancha rejilla rejilla-registro">
+    <form class="tarjeta" id="f"><h3>Nueva orden</h3>
+      <div class="rejilla rejilla-2" style="gap:0 14px">
+        <label class="campo"><span>Cliente</span>
+          <select name="cliente">${opciones(clientes.map(c=>c.nombre),'EXTERNOS')}</select></label>
+        <label class="campo"><span>Tipo de vehículo</span>
+          <select name="tipoVehiculo">${opciones(vehiculos.map(v=>v.nombre))}</select></label></div>
+      <label class="campo"><span>Servicio</span><select name="servicio" id="servicio"></select></label>
+      <div class="rejilla rejilla-2" style="gap:0 14px">
+        <label class="campo"><span>Tarifa (Bs)</span>
+          <input class="mono" name="tarifa" id="tarifa" type="number" step="0.5" min="0" value="0"></label>
+        <label class="campo"><span>Forma de pago</span>
+          <select name="tipoPago">${opciones(['EFECTIVO','PAGO QR','TRANSFERENCIA'])}</select></label></div>
+      <div class="rejilla rejilla-3" style="gap:0 14px">
+        <label class="campo"><span>Nombre</span><input name="nombre" placeholder="Sin nombre" autocomplete="off"></label>
+        <label class="campo"><span>Placa</span>
+          <input class="mono" name="placa" placeholder="S/P" autocomplete="off" style="text-transform:uppercase"></label>
+        <label class="campo"><span>Modelo</span>
+          <input name="modelo" placeholder="—" autocomplete="off" style="text-transform:uppercase"></label></div>
+      <div class="rejilla rejilla-2" style="gap:0 14px">
+        <label class="campo"><span>Atención (lavador)</span>
+          <select name="atencion">${opciones(['',...personal.map(p=>p.nombre)])}</select></label>
+        <label class="campo"><span>Bahía</span><select name="bahia" id="bahia"></select></label></div>
+      <div class="fila-btn mt">
+        <button class="btn btn-agua" type="submit" id="guardar">Registrar y abrir bahía</button>
+        <button class="btn" type="reset">Limpiar</button></div>
+      <p class="hint mt">La tarifa se llena sola. Podés ajustarla si el cliente pactó otro precio.</p></form>
+    <div>
+      <div class="tarjeta"><h3>Hoy</h3><div class="rejilla rejilla-3" id="resumen"></div></div>
+      <div class="tarjeta mt"><h3>Últimas órdenes</h3><div id="ultimas"></div></div></div></div>`;
+
+  const f = $('#f',vista), $servicio=$('#servicio',vista), $tarifa=$('#tarifa',vista), $bahia=$('#bahia',vista);
+  function refrescarServicios() {
+    const c=f.cliente.value, t=f.tipoVehiculo.value;
+    const lista = tarifas.filter(p=>p.cliente===c&&p.tipoVehiculo===t&&p.activo!==false);
+    $servicio.innerHTML = (lista.length
+      ? lista.map(p=>`<option value="${esc(p.servicio)}" data-tarifa="${p.tarifa}">${esc(p.servicio)} — Bs ${bs(p.tarifa)}</option>`).join('')
+      : '') + '<option value="__libre">— Otro servicio (tarifa manual) —</option>';
+    refrescarTarifa();
+  }
+  function refrescarTarifa() {
+    const op=$servicio.selectedOptions[0];
+    $tarifa.value = (!op||op.value==='__libre') ? 0 : op.dataset.tarifa;
+  }
+  f.cliente.onchange = f.tipoVehiculo.onchange = refrescarServicios;
+  $servicio.onchange = refrescarTarifa;
+  refrescarServicios();
+
+  let bahiasVivas=[];
+  const cortar = escucharBahias(async b => {
+    if (!b.length) { await inicializarBahias(); return; }
+    bahiasVivas = b.sort((x,y)=>Number(x.id)-Number(y.id));
+    const sel=$bahia.value;
+    $bahia.innerHTML = '<option value="">Sin asignar (cola)</option>' +
+      bahiasVivas.map(x=>`<option value="${x.id}"${x.estado==='ACTIVO'?' disabled':''}>Bahía ${x.id}${x.estado==='ACTIVO'?' · ocupada':''}</option>`).join('');
+    if (sel && bahiasVivas.find(x=>x.id===sel&&x.estado!=='ACTIVO')) $bahia.value=sel;
+  });
+
+  const cortarOrdenes = escucharOrdenesDelDia(hoyISO(), ordenes => {
+    const total=ordenes.reduce((s,o)=>s+Number(o.tarifa||0),0);
+    const efe=ordenes.filter(o=>o.tipoPago==='EFECTIVO').reduce((s,o)=>s+Number(o.tarifa||0),0);
+    $('#resumen',vista).innerHTML = [['Lavados',ordenes.length],['Efectivo','Bs '+bs(efe)],['QR / transf.','Bs '+bs(total-efe)]]
+      .map(([k,v])=>`<div><div class="hint" style="font-family:var(--dato);font-size:10px;letter-spacing:.14em;text-transform:uppercase">${k}</div>
+        <div class="mono" style="font-size:21px;font-weight:600;margin-top:3px">${v}</div></div>`).join('') +
+      `<div style="grid-column:1/-1;border-top:1px solid var(--linea);padding-top:10px;margin-top:4px;display:flex">
+        <span class="hint">Total generado</span><b class="mono" style="margin-left:auto;font-size:16px">Bs ${bs(total)}</b></div>`;
+    $('#ultimas',vista).innerHTML = ordenes.length ? `<div class="tabla-marco"><table>
+      <thead><tr><th>Nro</th><th>Cliente</th><th>Servicio</th><th class="num">Bs</th></tr></thead>
+      <tbody>${ordenes.slice(0,8).map(o=>`<tr data-o="${o.id}" style="cursor:pointer">
+        <td class="mono">${o.nro}</td><td>${esc(o.cliente)}</td>
+        <td style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(o.servicio)}</td>
+        <td class="num">${bs(o.tarifa)}</td></tr>`).join('')}</tbody></table></div>`
+      : '<p class="hint">Todavía no hay órdenes hoy.</p>';
+    $('#ultimas',vista).querySelectorAll('tr[data-o]').forEach(tr=>tr.onclick=()=>verRecibo(ordenes.find(o=>o.id===tr.dataset.o)));
+  });
+
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const b=$('#guardar',vista);
+    if ($servicio.value==='__libre') {
+      const txt = prompt('Nombre del servicio:');
+      if (!txt) return;
+      $servicio.insertAdjacentHTML('afterbegin',
+        `<option value="${esc(txt.toUpperCase())}" data-tarifa="${$tarifa.value}" selected>${esc(txt.toUpperCase())}</option>`);
+    }
+    b.disabled=true; b.textContent='Guardando…';
+    try {
+      const nro = await siguienteOrden();
+      const bahia = $bahia.value ? Number($bahia.value) : null;
+      const orden = {
+        nro, nroControl:nroControl(), fecha:hoyISO(), hora:horaAhora(),
+        cliente:f.cliente.value, tipoVehiculo:f.tipoVehiculo.value, servicio:$servicio.value,
+        nombre:f.nombre.value.trim().toUpperCase()||'SIN NOMBRE',
+        placa:f.placa.value.trim().toUpperCase()||'S/P', modelo:f.modelo.value.trim().toUpperCase()||'—',
+        tarifa:Number($tarifa.value)||0, tipoPago:f.tipoPago.value, atencion:f.atencion.value||'',
+        encargado:sesion.nombre, encargadoUid:sesion.uid, bahia,
+        estado:bahia?'EN_LAVADO':'EN_COLA', horaInicio:bahia?horaAhora():null, horaFin:null, demora:null
+      };
+      const ref = await nuevaOrden(orden);
+      if (bahia) await updateDoc(refBahia(bahia),{estado:'ACTIVO',ordenId:ref.id,inicioMs:Date.now(),
+        resumen:{nro,cliente:orden.cliente,servicio:orden.servicio,tipoVehiculo:orden.tipoVehiculo,
+          placa:orden.placa,modelo:orden.modelo,tarifa:orden.tarifa,atencion:orden.atencion}});
+      aviso(`Orden ${nro} registrada.`,'ok');
+      verRecibo({id:ref.id,...orden});
+      f.reset(); refrescarServicios();
+    } catch(err) { console.error(err); aviso('No se pudo guardar: '+err.message,'error'); }
+    finally { b.disabled=false; b.textContent='Registrar y abrir bahía'; }
+  };
+  f.onreset = () => setTimeout(refrescarServicios,0);
+  return () => { cortar(); cortarOrdenes(); };
+};
+
+// ---------- MONITOREO ----------
+MODULOS.monitoreo = async function(vista) {
+  const personal = await catalogoActivos('personal');
+  vista.innerHTML = `<div class="rejilla rejilla-bahias" id="bahias"></div>
+    <div class="tarjeta mt" id="cola-caja" style="display:none"><h3>En cola · sin bahía asignada</h3><div id="cola"></div></div>`;
+  let bahias=[], cola=[], tic=null;
+  const cortarB = escucharBahias(async b => {
+    if (!b.length) return inicializarBahias();
+    bahias = b.sort((x,y)=>Number(x.id)-Number(y.id)); pintar();
+  });
+  const cortarO = escucharOrdenesDelDia(hoyISO(), ordenes => { cola=ordenes.filter(o=>o.estado==='EN_COLA'); pintarCola(); });
+
+  function pintar() {
+    $('#bahias',vista).innerHTML = bahias.map(b=>{
+      const r=b.resumen||{}, libre=b.estado!=='ACTIVO';
+      return `<article class="bahia ${libre?'libre':'ocupada'}" data-b="${b.id}">
+        <div class="bahia-tope"><span class="bahia-nro">${String(b.id).padStart(2,'0')}</span>
+          <span class="etiqueta ${libre?'verde':'cera'}">${libre?'Disponible':'En lavado'}</span>
+          <span class="lampara"></span></div>
+        ${libre ? `<p class="bahia-vacia">Bahía libre.</p>
+          ${cola.length?'<button class="btn btn-chico btn-ancho" data-asignar>Asignar de la cola</button>':''}`
+        : `<div class="bahia-cliente">${esc(r.cliente||'—')} · ${esc(r.tipoVehiculo||'')}</div>
+           <div class="bahia-servicio">${esc(r.servicio||'')}</div>
+           <div class="bahia-servicio">${esc(r.modelo||'—')} · ${esc(r.placa||'S/P')}</div>
+           <div class="bahia-reloj" data-reloj="${b.inicioMs||0}">0:00:00</div>
+           <div class="bahia-servicio" style="margin-bottom:12px">Orden <b class="mono">${r.nro??'—'}</b> · Bs ${bs(r.tarifa)} · ${esc(r.atencion||'sin lavador')}</div>
+           <div class="fila-btn"><button class="btn btn-verde btn-chico" data-fin>Finalizar</button>
+             <button class="btn btn-chico" data-lavador>Lavador</button></div>`}</article>`;
+    }).join('');
+    vista.querySelectorAll('.bahia').forEach(el=>{
+      const id=el.dataset.b;
+      el.querySelector('[data-fin]')?.addEventListener('click',()=>finalizar(id));
+      el.querySelector('[data-asignar]')?.addEventListener('click',()=>asignar(id));
+      el.querySelector('[data-lavador]')?.addEventListener('click',()=>cambiarLavador(id));
+    });
+    clearInterval(tic); tic=setInterval(tictac,1000); tictac();
+  }
+  function tictac() {
+    vista.querySelectorAll('[data-reloj]').forEach(el=>{
+      const ini=Number(el.dataset.reloj); el.textContent = ini?reloj((Date.now()-ini)/1000):'—';
+    });
+  }
+  function pintarCola() {
+    $('#cola-caja',vista).style.display = cola.length?'':'none';
+    $('#cola',vista).innerHTML = cola.length ? `<div class="tabla-marco"><table>
+      <thead><tr><th>Nro</th><th>Cliente</th><th>Vehículo</th><th>Servicio</th><th class="num">Bs</th></tr></thead>
+      <tbody>${cola.map(o=>`<tr data-o="${o.id}" style="cursor:pointer">
+        <td class="mono">${o.nro}</td><td>${esc(o.cliente)}</td><td>${esc(o.tipoVehiculo)} · ${esc(o.placa)}</td>
+        <td>${esc(o.servicio)}</td><td class="num">${bs(o.tarifa)}</td></tr>`).join('')}</tbody></table></div>` : '';
+    $('#cola',vista).querySelectorAll('tr[data-o]').forEach(tr=>tr.onclick=()=>verRecibo(cola.find(o=>o.id===tr.dataset.o)));
+    if (bahias.length) pintar();
+  }
+  async function finalizar(id) {
+    const b=bahias.find(x=>x.id===id); if(!b?.ordenId) return;
+    const seg=b.inicioMs?Math.round((Date.now()-b.inicioMs)/1000):0;
+    if (!await confirmar(`Cerrar la bahía ${id}. Demora: ${reloj(seg)}.`,'Finalizar')) return;
+    try {
+      await editarOrden(b.ordenId,{horaFin:horaAhora(),demora:reloj(seg),demoraSeg:seg,estado:'FINALIZADO'});
+      await updateDoc(refBahia(id),{estado:'DISPONIBLE',ordenId:null,inicioMs:null,resumen:null});
+      aviso(`Bahía ${id} liberada.`,'ok');
+    } catch(e){ aviso('No se pudo cerrar: '+e.message,'error'); }
+  }
+  function asignar(id) {
+    const m=modal(`Asignar a bahía ${id}`,`<label class="campo"><span>Orden en cola</span>
+      <select id="o">${cola.map(o=>`<option value="${o.id}">${o.nro} · ${esc(o.cliente)} · ${esc(o.servicio)}</option>`).join('')}</select></label>
+      <div class="fila-btn" style="justify-content:flex-end"><button class="btn btn-agua" id="ok">Asignar</button></div>`,{ancho:420});
+    m.cuerpo.querySelector('#ok').onclick = async () => {
+      const o=cola.find(x=>x.id===m.cuerpo.querySelector('#o').value);
+      try {
+        await editarOrden(o.id,{bahia:Number(id),estado:'EN_LAVADO',horaInicio:horaAhora()});
+        await updateDoc(refBahia(id),{estado:'ACTIVO',ordenId:o.id,inicioMs:Date.now(),
+          resumen:{nro:o.nro,cliente:o.cliente,servicio:o.servicio,tipoVehiculo:o.tipoVehiculo,
+            placa:o.placa,modelo:o.modelo,tarifa:o.tarifa,atencion:o.atencion}});
+        m.cerrar(); aviso(`Orden ${o.nro} → bahía ${id}.`,'ok');
+      } catch(e){ aviso(e.message,'error'); }
+    };
+  }
+  function cambiarLavador(id) {
+    const b=bahias.find(x=>x.id===id);
+    const m=modal(`Bahía ${id} · lavador`,`<label class="campo"><span>Atención</span>
+      <select id="p">${opciones(personal.map(p=>p.nombre),b.resumen?.atencion)}</select></label>
+      <div class="fila-btn" style="justify-content:flex-end"><button class="btn btn-agua" id="ok">Guardar</button></div>`,{ancho:380});
+    m.cuerpo.querySelector('#ok').onclick = async () => {
+      const v=m.cuerpo.querySelector('#p').value;
+      await editarOrden(b.ordenId,{atencion:v});
+      await updateDoc(refBahia(id),{resumen:{...b.resumen,atencion:v}});
+      m.cerrar(); aviso('Lavador actualizado.','ok');
+    };
+  }
+  return () => { cortarB(); cortarO(); clearInterval(tic); };
+};
+
+// ---------- HISTORIAL ----------
+MODULOS.historial = async function(vista) {
+  const hoy=hoyISO(), hace30=new Date(Date.now()-30*864e5).toISOString().slice(0,10);
+  vista.innerHTML = `<div class="tarjeta">
+    <div class="rejilla rejilla-3" style="gap:0 12px;align-items:end">
+      <label class="campo"><span>Desde</span><input type="date" id="d" value="${hace30}"></label>
+      <label class="campo"><span>Hasta</span><input type="date" id="h" value="${hoy}"></label>
+      <label class="campo"><span>Buscar</span><input id="q" placeholder="placa, nombre, servicio…" autocomplete="off"></label></div>
+    <div class="fila-btn"><button class="btn btn-agua" id="buscar">Buscar</button>
+      <button class="btn" id="csv">Descargar CSV</button></div></div>
+    <div class="rejilla rejilla-3 mt" id="tot"></div><div class="mt" id="tabla"></div>`;
+  let filas=[];
+  async function buscar() {
+    const b=$('#buscar',vista); b.disabled=true; b.textContent='Buscando…';
+    $('#tabla',vista).innerHTML='<p class="vacio">Cargando…</p>';
+    try { filas = await ordenesEntre($('#d',vista).value,$('#h',vista).value,1000); pintar(); }
+    catch(e){ $('#tabla',vista).innerHTML=`<p class="vacio">${esc(e.message)}</p>`; }
+    finally{ b.disabled=false; b.textContent='Buscar'; }
+  }
+  function filtradas() {
+    const q=$('#q',vista).value.trim().toLowerCase();
+    if (!q) return filas;
+    return filas.filter(o=>[o.nro,o.nombre,o.placa,o.modelo,o.servicio,o.cliente,o.atencion,o.nroControl].join(' ').toLowerCase().includes(q));
+  }
+  function pintar() {
+    const f=filtradas().sort((a,b)=>b.fecha.localeCompare(a.fecha)||b.hora.localeCompare(a.hora));
+    const total=f.reduce((s,o)=>s+Number(o.tarifa||0),0);
+    const efe=f.filter(o=>o.tipoPago==='EFECTIVO').reduce((s,o)=>s+Number(o.tarifa||0),0);
+    $('#tot',vista).innerHTML=[['Lavados',f.length],['Total','Bs '+bs(total)],['Efectivo','Bs '+bs(efe)],['QR / transf.','Bs '+bs(total-efe)]]
+      .map(([k,v])=>`<div class="tarjeta"><div class="hint" style="font-family:var(--dato);font-size:10px;letter-spacing:.14em;text-transform:uppercase">${k}</div>
+        <div class="mono" style="font-size:24px;font-weight:600;margin-top:4px">${v}</div></div>`).join('');
+    $('#tabla',vista).innerHTML = f.length ? `<div class="tabla-marco"><table>
+      <thead><tr><th>Nro</th><th>Fecha</th><th>Hora</th><th>Cliente</th><th>Nombre</th><th>Vehículo</th>
+        <th>Placa</th><th>Servicio</th><th>Atención</th><th>Demora</th><th>Pago</th><th class="num">Bs</th><th></th></tr></thead>
+      <tbody>${f.map(o=>`<tr><td class="mono">${o.nro}</td><td class="mono">${fechaBO(o.fecha)}</td>
+        <td class="mono">${esc(o.hora)}</td><td>${esc(o.cliente)}</td><td>${esc(o.nombre)}</td>
+        <td>${esc(o.tipoVehiculo)}</td><td class="mono">${esc(o.placa)}</td><td>${esc(o.servicio)}</td>
+        <td>${esc(o.atencion||'—')}</td><td class="mono">${esc(o.demora||'—')}</td><td>${esc(o.tipoPago)}</td>
+        <td class="num">${bs(o.tarifa)}</td><td style="white-space:nowrap">
+          <button class="btn btn-chico" data-ver="${o.id}">Recibo</button>
+          ${esAdmin()?`<button class="btn btn-chico" data-ed="${o.id}">Editar</button>
+            <button class="btn btn-chico btn-rojo" data-del="${o.id}">×</button>`:''}</td></tr>`).join('')}</tbody></table></div>`
+      : '<div class="vacio"><p>Sin órdenes en ese rango.</p></div>';
+    vista.querySelectorAll('[data-ver]').forEach(b=>b.onclick=()=>verRecibo(filas.find(o=>o.id===b.dataset.ver)));
+    vista.querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>editar(filas.find(o=>o.id===b.dataset.ed)));
+    vista.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+      const o=filas.find(x=>x.id===b.dataset.del);
+      if (!await confirmar(`Borrar la orden ${o.nro}. No se puede deshacer.`,'Borrar')) return;
+      await borrarOrden(o.id); filas=filas.filter(x=>x.id!==o.id); pintar(); aviso('Orden borrada.','ok');
+    });
+  }
+  function editar(o) {
+    const m=modal(`Orden ${o.nro}`,`<div class="rejilla rejilla-2" style="gap:0 12px">
+      <label class="campo"><span>Tarifa (Bs)</span><input class="mono" type="number" step="0.5" id="t" value="${o.tarifa}"></label>
+      <label class="campo"><span>Forma de pago</span><select id="p">${opciones(['EFECTIVO','PAGO QR','TRANSFERENCIA'],o.tipoPago)}</select></label></div>
+      <label class="campo"><span>Servicio</span><input id="s" value="${esc(o.servicio)}"></label>
+      <div class="rejilla rejilla-2" style="gap:0 12px">
+        <label class="campo"><span>Placa</span><input class="mono" id="pl" value="${esc(o.placa)}"></label>
+        <label class="campo"><span>Modelo</span><input id="mo" value="${esc(o.modelo)}"></label></div>
+      <div class="fila-btn" style="justify-content:flex-end"><button class="btn btn-agua" id="ok">Guardar cambios</button></div>`);
+    m.cuerpo.querySelector('#ok').onclick = async () => {
+      const d={tarifa:Number(m.cuerpo.querySelector('#t').value)||0,tipoPago:m.cuerpo.querySelector('#p').value,
+        servicio:m.cuerpo.querySelector('#s').value.toUpperCase(),placa:m.cuerpo.querySelector('#pl').value.toUpperCase(),
+        modelo:m.cuerpo.querySelector('#mo').value.toUpperCase()};
+      await editarOrden(o.id,d); Object.assign(o,d); m.cerrar(); pintar(); aviso('Orden actualizada.','ok');
+    };
+  }
+  function csv() {
+    const cols=['nro','fecha','hora','nroControl','nombre','cliente','tipoVehiculo','servicio','placa','modelo','tarifa','encargado','atencion','horaInicio','horaFin','demora','tipoPago'];
+    const e=v=>`"${String(v??'').replace(/"/g,'""')}"`;
+    const txt=[cols.join(',')].concat(filtradas().map(o=>cols.map(c=>e(o[c])).join(','))).join('\n');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob(['\ufeff'+txt],{type:'text/csv;charset=utf-8'}));
+    a.download=`junkers-historial-${hoyISO()}.csv`; a.click();
+  }
+  $('#buscar',vista).onclick=buscar; $('#csv',vista).onclick=csv;
+  $('#q',vista).oninput=()=>filas.length&&pintar();
+  await buscar();
+};
+
+// ---------- PRECIOS ----------
+MODULOS.precios = async function(vista) {
+  const [clientes,vehiculos]=await Promise.all([catalogoActivos('clientes'),catalogoActivos('vehiculos')]);
+  let filas=await precios(true);
+  vista.innerHTML=`<div class="tarjeta">
+    <div class="rejilla rejilla-3" style="gap:0 12px;align-items:end">
+      <label class="campo"><span>Tipo de vehículo</span>
+        <select id="fv"><option value="">Todos</option>${opciones(vehiculos.map(v=>v.nombre))}</select></label>
+      <label class="campo"><span>Cliente</span>
+        <select id="fc"><option value="">Todos</option>${opciones(clientes.map(c=>c.nombre))}</select></label>
+      <label class="campo"><span>Buscar servicio</span><input id="fq" placeholder="lavado, encerado…"></label></div>
+    ${esAdmin()?'<button class="btn btn-agua" id="nuevo">Agregar tarifa</button>':''}</div>
+    <div class="mt" id="tabla"></div>`;
+  function pintar() {
+    const v=$('#fv',vista).value,c=$('#fc',vista).value,q=$('#fq',vista).value.trim().toLowerCase();
+    const f=filas.filter(p=>(!v||p.tipoVehiculo===v)&&(!c||p.cliente===c)&&(!q||p.servicio.toLowerCase().includes(q)));
+    $('#tabla',vista).innerHTML = f.length ? `<div class="tabla-marco"><table>
+      <thead><tr><th>Vehículo</th><th>Cliente</th><th>Servicio</th><th class="num">Tarifa</th>
+        <th class="num">Promo</th><th>Estado</th>${esAdmin()?'<th></th>':''}</tr></thead>
+      <tbody>${f.map(p=>`<tr><td>${esc(p.tipoVehiculo)}</td><td>${esc(p.cliente)}</td><td>${esc(p.servicio)}</td>
+        <td class="num">${bs(p.tarifa)}</td><td class="num">${p.promo?bs(p.promo):'—'}</td>
+        <td><span class="etiqueta ${p.activo===false?'':'verde'}">${p.activo===false?'Inactiva':'Activa'}</span></td>
+        ${esAdmin()?`<td style="white-space:nowrap"><button class="btn btn-chico" data-ed="${p.id}">Editar</button>
+          <button class="btn btn-chico btn-rojo" data-del="${p.id}">×</button></td>`:''}</tr>`).join('')}</tbody></table></div>
+      <p class="hint mt">${f.length} tarifa${f.length===1?'':'s'} de ${filas.length}.</p>`
+      : '<div class="vacio"><p>Sin tarifas con ese filtro.</p></div>';
+    vista.querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>editor(filas.find(p=>p.id===b.dataset.ed)));
+    vista.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+      const p=filas.find(x=>x.id===b.dataset.del);
+      if (!await confirmar(`Borrar "${p.servicio}" de ${p.tipoVehiculo}/${p.cliente}.`,'Borrar')) return;
+      await borrarPrecio(p.id); filas=filas.filter(x=>x.id!==p.id); invalidarPrecios(); pintar(); aviso('Tarifa borrada.','ok');
+    });
+  }
+  function editor(p=null) {
+    const m=modal(p?'Editar tarifa':'Nueva tarifa',`<div class="rejilla rejilla-2" style="gap:0 12px">
+      <label class="campo"><span>Tipo de vehículo</span><select id="v">${opciones(vehiculos.map(x=>x.nombre),p?.tipoVehiculo)}</select></label>
+      <label class="campo"><span>Cliente</span><select id="c">${opciones(clientes.map(x=>x.nombre),p?.cliente)}</select></label></div>
+      <label class="campo"><span>Servicio</span><input id="s" value="${esc(p?.servicio||'')}" placeholder="LAVADO PREMIUM"></label>
+      <div class="rejilla rejilla-2" style="gap:0 12px">
+        <label class="campo"><span>Tarifa normal (Bs)</span><input class="mono" type="number" step="0.5" min="0" id="t" value="${p?.tarifa??''}"></label>
+        <label class="campo"><span>Tarifa promocional (Bs)</span><input class="mono" type="number" step="0.5" min="0" id="pr" value="${p?.promo??''}"></label></div>
+      <label class="campo" style="display:flex;gap:8px;align-items:center">
+        <input type="checkbox" id="a" ${p?.activo===false?'':'checked'} style="width:auto">
+        <span style="margin:0;letter-spacing:0;text-transform:none;font-size:14px;color:var(--espuma);font-family:var(--texto)">Tarifa activa</span></label>
+      <div class="fila-btn" style="justify-content:flex-end"><button class="btn btn-agua" id="ok">Guardar</button></div>`);
+    m.cuerpo.querySelector('#ok').onclick = async () => {
+      const g=id=>m.cuerpo.querySelector('#'+id);
+      const servicio=g('s').value.trim().toUpperCase();
+      if (!servicio) return aviso('Escribí el nombre del servicio.','error');
+      const d={tipoVehiculo:g('v').value,cliente:g('c').value,servicio,tarifa:Number(g('t').value)||0,
+        promo:g('pr').value===''?null:Number(g('pr').value),activo:g('a').checked};
+      try { await guardarPrecio(p?.id,d); invalidarPrecios(); filas=await precios(true); m.cerrar(); pintar(); aviso('Tarifa guardada.','ok'); }
+      catch(e){ aviso(e.message,'error'); }
+    };
+  }
+  $('#fv',vista).onchange=$('#fc',vista).onchange=pintar; $('#fq',vista).oninput=pintar;
+  $('#nuevo',vista)&&($('#nuevo',vista).onclick=()=>editor());
   pintar();
-  if (pin.length === 4) entrar();
+};
+
+// ---------- CATÁLOGOS / LISTAS ----------
+MODULOS.catalogos = async function(vista) {
+  const CATS={clientes:{titulo:'Clientes',desc:'Los grupos que aparecen en cada orden: JUNKERS, YANGO, EXTERNOS…'},
+    vehiculos:{titulo:'Tipos de vehículo',desc:'La clasificación decide el bono del lavador (auto o moto).'},
+    personal:{titulo:'Personal',desc:'Lavadores que aparecen en el campo "Atención".'}};
+  const cfg=await config();
+  vista.innerHTML=`<div class="tarjeta"><h3>Datos del negocio</h3>
+    <div class="rejilla rejilla-2" style="gap:0 12px">
+      <label class="campo"><span>Nombre</span><input id="cf-negocio" value="${esc(cfg.negocio)}"></label>
+      <label class="campo"><span>WhatsApp</span><input id="cf-whatsapp" value="${esc(cfg.whatsapp)}"></label></div>
+    <div class="rejilla rejilla-2" style="gap:0 12px">
+      <label class="campo"><span>Dirección</span><input id="cf-direccion" value="${esc(cfg.direccion)}"></label>
+      <label class="campo"><span>Correo</span><input id="cf-correo" value="${esc(cfg.correo||'')}"></label></div>
+    ${esAdmin()?'<button class="btn btn-agua" id="cf-ok">Guardar datos</button>':'<p class="hint">Solo el administrador puede cambiarlos.</p>'}</div>
+    <div class="rejilla rejilla-2 mt" id="cats"></div>`;
+  if (esAdmin()) $('#cf-ok',vista).onclick=async()=>{
+    await guardarConfig({negocio:$('#cf-negocio',vista).value.trim(),whatsapp:$('#cf-whatsapp',vista).value.trim(),
+      direccion:$('#cf-direccion',vista).value.trim(),correo:$('#cf-correo',vista).value.trim()});
+    aviso('Datos guardados.','ok');
+  }; else vista.querySelectorAll('.tarjeta input').forEach(i=>i.disabled=true);
+
+  for (const [cat,info] of Object.entries(CATS)) {
+    const caja=document.createElement('div'); caja.className='tarjeta';
+    caja.innerHTML=`<h3>${info.titulo}</h3><p class="hint" style="margin:-8px 0 12px">${info.desc}</p>
+      <div data-lista></div>${esAdmin()?`<button class="btn btn-chico mt" data-add>Agregar</button>`:''}`;
+    $('#cats',vista).append(caja);
+    await pintarCat(cat,caja,CATS);
+  }
+};
+async function pintarCat(cat,caja,CATS) {
+  const items=await catalogo(cat,true);
+  caja.querySelector('[data-lista]').innerHTML = items.length ? `<div class="tabla-marco"><table>
+    <thead><tr><th>Nombre</th>${cat==='vehiculos'?'<th>Clase</th>':''}${cat==='personal'?'<th>Pago</th>':''}
+      <th>Estado</th>${esAdmin()?'<th></th>':''}</tr></thead>
+    <tbody>${items.map(i=>`<tr><td>${esc(i.nombre)}</td>
+      ${cat==='vehiculos'?`<td>${esc(i.clasificacion||'AUTO')}</td>`:''}
+      ${cat==='personal'?`<td>${esc(i.modoPago||'diario+bono')}</td>`:''}
+      <td><span class="etiqueta ${i.activo===false?'':'verde'}">${i.activo===false?'Inactivo':'Activo'}</span></td>
+      ${esAdmin()?`<td style="white-space:nowrap"><button class="btn btn-chico" data-ed="${i.id}">Editar</button>
+        <button class="btn btn-chico btn-rojo" data-del="${i.id}">×</button></td>`:''}</tr>`).join('')}</tbody></table></div>`
+    : '<p class="hint">Lista vacía.</p>';
+  caja.querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>editorCat(cat,caja,CATS,items.find(i=>i.id===b.dataset.ed)));
+  caja.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+    const i=items.find(x=>x.id===b.dataset.del);
+    if (!await confirmar(`Borrar "${i.nombre}". Las órdenes viejas no cambian.`,'Borrar')) return;
+    await borrarItem(cat,i.id); limpiarCache(cat); await pintarCat(cat,caja,CATS); aviso('Borrado.','ok');
+  });
+  const add=caja.querySelector('[data-add]'); if (add) add.onclick=()=>editorCat(cat,caja,CATS);
+}
+function editorCat(cat,caja,CATS,item=null) {
+  const extra = cat==='vehiculos'
+    ? `<label class="campo"><span>Clasificación para bonos</span><select id="x">${opciones(['AUTO','MOTO'],item?.clasificacion||'AUTO')}</select></label>`
+    : cat==='personal'
+    ? `<label class="campo"><span>Modo de pago</span><select id="x">${opciones(['diario+bono','45%'],item?.modoPago||'diario+bono')}</select></label>` : '';
+  const m=modal(item?'Editar':`Agregar a ${CATS[cat].titulo.toLowerCase()}`,`
+    <label class="campo"><span>Nombre</span><input id="n" value="${esc(item?.nombre||'')}"></label>${extra}
+    <label class="campo"><span>Orden en la lista</span><input class="mono" type="number" id="o" value="${item?.orden??10}"></label>
+    <label class="campo" style="display:flex;gap:8px;align-items:center">
+      <input type="checkbox" id="a" ${item?.activo===false?'':'checked'} style="width:auto">
+      <span style="margin:0;letter-spacing:0;text-transform:none;font-size:14px;color:var(--espuma);font-family:var(--texto)">Activo</span></label>
+    <div class="fila-btn" style="justify-content:flex-end"><button class="btn btn-agua" id="ok">Guardar</button></div>`,{ancho:400});
+  m.cuerpo.querySelector('#ok').onclick = async () => {
+    const g=id=>m.cuerpo.querySelector('#'+id);
+    const nombre=g('n').value.trim().toUpperCase();
+    if (!nombre) return aviso('Escribí un nombre.','error');
+    const d={nombre,orden:Number(g('o').value)||10,activo:g('a').checked};
+    if (cat==='vehiculos') d.clasificacion=g('x').value;
+    if (cat==='personal')  d.modoPago=g('x').value;
+    try { if (item) await guardarItem(cat,item.id,d); else await nuevoItem(cat,d);
+      limpiarCache(cat); m.cerrar(); await pintarCat(cat,caja,CATS); aviso('Guardado.','ok'); }
+    catch(e){ aviso(e.message,'error'); }
+  };
 }
 
-document.getElementById('teclado').addEventListener('click', e => {
-  const b = e.target.closest('.tecla');
-  if (b) marcar(b.dataset.t);
-});
-addEventListener('keydown', e => {
-  if (/^[0-9]$/.test(e.key)) marcar(e.key);
-  else if (e.key === 'Backspace') marcar('borrar');
-  else if (e.key === 'Enter' && pin.length === 4) entrar();
+// ---------- USUARIOS ----------
+const ROLES={admin:'Administrador — ve y cambia todo',cajero:'Cajero — registra órdenes y cobra',lector:'Solo lectura — consulta, no modifica'};
+MODULOS.usuarios = async function(vista) {
+  vista.innerHTML=`<div class="tarjeta">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div><h3 style="margin:0">Usuarios del sistema</h3>
+        <p class="hint" style="margin-top:4px">Cada persona entra con su nombre y un PIN de 4 dígitos.</p></div>
+      <button class="btn btn-agua" id="nuevo" style="margin-left:auto">Crear usuario</button></div></div>
+    <div class="mt" id="tabla"></div>
+    <div class="tarjeta mt"><h3>Sobre los PIN</h3>
+      <p class="hint">El PIN se define al crear el usuario y cada persona puede cambiarlo desde <b>Mi PIN</b>.
+      Si alguien lo olvida: borralo acá y volvé a crearlo con otro PIN — su historial no se toca.<br><br>
+      Desactivar un usuario le corta el acceso al instante sin borrar nada.</p></div>`;
+  let filas=[];
+  async function pintar() {
+    filas=await listarUsuarios();
+    $('#tabla',vista).innerHTML=`<div class="tabla-marco"><table>
+      <thead><tr><th></th><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Estado</th><th></th></tr></thead>
+      <tbody>${filas.map(u=>`<tr>
+        <td><div class="avatar" style="width:26px;height:26px;font-size:11px">${iniciales(u.nombre)}</div></td>
+        <td><b>${esc(u.nombre)}</b>${u.id===sesion.uid?' <span class="etiqueta agua">vos</span>':''}</td>
+        <td class="mono">${esc(u.usuario)}</td><td>${esc(u.rol)}</td>
+        <td><span class="etiqueta ${u.activo===false?'rojo':'verde'}">${u.activo===false?'Inactivo':'Activo'}</span></td>
+        <td style="white-space:nowrap"><button class="btn btn-chico" data-ed="${u.id}">Editar</button>
+          ${u.id===sesion.uid?'':`<button class="btn btn-chico btn-rojo" data-del="${u.id}">Borrar</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+    vista.querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>editar(filas.find(u=>u.id===b.dataset.ed)));
+    vista.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+      const u=filas.find(x=>x.id===b.dataset.del);
+      if (!await confirmar(`Quitar el acceso de ${u.nombre}. Sus órdenes quedan intactas.`,'Borrar')) return;
+      await eliminarUsuario(u.id); await pintar(); aviso('Usuario borrado.','ok');
+    });
+  }
+  function editar(u) {
+    const m=modal(`Editar ${u.nombre}`,`<label class="campo"><span>Nombre visible</span><input id="n" value="${esc(u.nombre)}"></label>
+      <label class="campo"><span>Rol</span><select id="r">${Object.entries(ROLES).map(([k,v])=>`<option value="${k}"${u.rol===k?' selected':''}>${esc(v)}</option>`).join('')}</select></label>
+      <label class="campo" style="display:flex;gap:8px;align-items:center">
+        <input type="checkbox" id="a" ${u.activo===false?'':'checked'} style="width:auto">
+        <span style="margin:0;letter-spacing:0;text-transform:none;font-size:14px;color:var(--espuma);font-family:var(--texto)">Puede ingresar</span></label>
+      <p class="hint">Usuario de acceso: <b class="mono">${esc(u.usuario)}</b> (no se puede cambiar).</p>
+      <div class="fila-btn mt" style="justify-content:flex-end"><button class="btn btn-agua" id="ok">Guardar</button></div>`,{ancho:420});
+    m.cuerpo.querySelector('#ok').onclick = async () => {
+      const g=id=>m.cuerpo.querySelector('#'+id);
+      const nombre=g('n').value.trim(),rol=g('r').value,activo=g('a').checked;
+      if (!nombre) return aviso('Escribí un nombre.','error');
+      if (u.id===sesion.uid&&(rol!=='admin'||!activo)) return aviso('No podés quitarte a vos mismo el acceso de administrador.','error');
+      try { await escribirUsuario(u.id,{nombre,rol,activo}); await escribirDirectorio(u.id,{nombre,usuario:u.usuario,activo});
+        m.cerrar(); await pintar(); aviso('Usuario actualizado.','ok'); }
+      catch(e){ aviso(e.message,'error'); }
+    };
+  }
+  function crear() {
+    const m=modal('Crear usuario',`<label class="campo"><span>Nombre visible</span><input id="n" placeholder="Soledad Rojas" autocomplete="off"></label>
+      <label class="campo"><span>Usuario de acceso</span><input class="mono" id="u" placeholder="soledad" autocomplete="off" style="text-transform:lowercase"></label>
+      <label class="campo"><span>PIN de 4 dígitos</span><input class="mono" id="p" inputmode="numeric" maxlength="4" placeholder="1234" autocomplete="off"></label>
+      <label class="campo"><span>Rol</span><select id="r">${Object.entries(ROLES).map(([k,v])=>`<option value="${k}"${k==='cajero'?' selected':''}>${esc(v)}</option>`).join('')}</select></label>
+      <p class="hint">Sin espacios ni tildes en el usuario. Es el nombre corto que elige al ingresar.</p>
+      <div class="fila-btn mt" style="justify-content:flex-end"><button class="btn btn-agua" id="ok">Crear</button></div>`,{ancho:420});
+    m.cuerpo.querySelector('#ok').onclick = async () => {
+      const g=id=>m.cuerpo.querySelector('#'+id);
+      const nombre=g('n').value.trim();
+      const usuario=g('u').value.trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+      const pin=g('p').value.trim(), rol=g('r').value;
+      if (!nombre) return aviso('Escribí el nombre.','error');
+      if (usuario.length<3) return aviso('El usuario necesita 3 letras o más.','error');
+      if (!/^\d{4}$/.test(pin)) return aviso('El PIN son exactamente 4 dígitos.','error');
+      if (filas.some(u=>u.usuario===usuario)) return aviso('Ese usuario ya existe.','error');
+      const btn=g('ok'); btn.disabled=true; btn.textContent='Creando…';
+      const secundaria=initializeApp(firebaseConfig,'alta-'+Date.now());
+      const authSec=getAuth(secundaria);
+      try {
+        const cred=await createUserWithEmailAndPassword(authSec,correoDe(usuario),claveDe(pin));
+        const uid=cred.user.uid;
+        await signOut(authSec);
+        await escribirUsuario(uid,{nombre,usuario,rol,activo:true,creadoEn:serverTimestamp(),creadoPor:sesion.nombre});
+        await escribirDirectorio(uid,{nombre,usuario,activo:true});
+        m.cerrar(); await pintar(); aviso(`${nombre} ya puede ingresar con su PIN.`,'ok');
+      } catch(e) {
+        btn.disabled=false; btn.textContent='Crear';
+        aviso(e.code==='auth/email-already-in-use'?'Ese usuario ya se usó antes. Elegí otro nombre corto.':'No se pudo crear: '+e.message,'error');
+      }
+    };
+  }
+  $('#nuevo',vista).onclick=crear;
+  await pintar();
+};
+
+// ---------- MI PIN ----------
+MODULOS.perfil = async function(vista) {
+  vista.innerHTML=`<div class="tarjeta" style="max-width:440px"><h3>Cambiar mi PIN</h3>
+    <p class="hint" style="margin:-8px 0 16px">Ingresás como <b class="mono">${esc(sesion.usuario)}</b> (${esc(sesion.rol)}).</p>
+    <form id="f">
+      <label class="campo"><span>PIN actual</span><input class="mono" id="a" inputmode="numeric" maxlength="4" autocomplete="current-password"></label>
+      <label class="campo"><span>PIN nuevo</span><input class="mono" id="b" inputmode="numeric" maxlength="4" autocomplete="new-password"></label>
+      <label class="campo"><span>Repetir PIN nuevo</span><input class="mono" id="c" inputmode="numeric" maxlength="4" autocomplete="new-password"></label>
+      <button class="btn btn-agua btn-ancho" id="ok">Cambiar PIN</button></form>
+    <p class="hint mt">Si lo olvidás, el administrador puede volver a crear tu usuario con un PIN nuevo.</p></div>`;
+  $('#f',vista).onsubmit = async e => {
+    e.preventDefault();
+    const g=id=>$('#'+id,vista).value.trim();
+    const [a,b,c]=['a','b','c'].map(g);
+    if (!/^\d{4}$/.test(b)) return aviso('El PIN nuevo son 4 dígitos.','error');
+    if (b!==c) return aviso('Los PIN nuevos no coinciden.','error');
+    if (a===b) return aviso('El PIN nuevo tiene que ser distinto al actual.','error');
+    const btn=$('#ok',vista); btn.disabled=true; btn.textContent='Cambiando…';
+    try {
+      const cred=EmailAuthProvider.credential(correoDe(sesion.usuario),claveDe(a));
+      await reauthenticateWithCredential(auth.currentUser,cred);
+      await updatePassword(auth.currentUser,claveDe(b));
+      $('#f',vista).reset(); aviso('Listo. Usá tu PIN nuevo la próxima vez.','ok');
+    } catch(err) {
+      aviso(err.code==='auth/wrong-password'||err.code==='auth/invalid-credential'?'El PIN actual no es correcto.':'No se pudo cambiar: '+err.message,'error');
+    } finally { btn.disabled=false; btn.textContent='Cambiar PIN'; }
+  };
+};
+
+/* =========================================================
+   MENÚ Y RUTEO
+   ========================================================= */
+const TABS=[
+  {grupo:'Operación'},
+  {id:'tablero',nom:'Tablero',ico:'▦',v:'0.5'},
+  {id:'registro',nom:'Registro',ico:'＋',fn:'registro'},
+  {id:'monitoreo',nom:'Monitoreo',ico:'◉',fn:'monitoreo'},
+  {id:'historial',nom:'Historial',ico:'≡',fn:'historial'},
+  {grupo:'Caja'},
+  {id:'arqueo',nom:'Arqueo',ico:'▤',v:'0.3'},
+  {id:'egresos',nom:'Egresos',ico:'↓',v:'0.3'},
+  {id:'aportes',nom:'Aportes y dev.',ico:'⇄',v:'0.3'},
+  {grupo:'Tienda'},
+  {id:'venta',nom:'Venta snacks',ico:'⛁',v:'0.2'},
+  {id:'inventario',nom:'Inventario',ico:'▣',v:'0.2'},
+  {id:'stock',nom:'Stock',ico:'⚖',v:'0.2'},
+  {id:'insumos',nom:'Insumos limpieza',ico:'◍',v:'0.2'},
+  {grupo:'Personal'},
+  {id:'bonos',nom:'Bonos',ico:'★',v:'0.4'},
+  {id:'planillas',nom:'Planillas',ico:'▥',v:'0.4'},
+  {grupo:'Catálogos'},
+  {id:'precios',nom:'Precios',ico:'฿',fn:'precios'},
+  {id:'catalogos',nom:'Listas',ico:'⌗',fn:'catalogos'},
+  {id:'membresias',nom:'Membresías',ico:'⬖',v:'0.5'},
+  {id:'equipos',nom:'Equipos',ico:'⚙',v:'0.3'},
+  {grupo:'Sistema'},
+  {id:'usuarios',nom:'Usuarios',ico:'☺',fn:'usuarios',admin:true},
+  {id:'perfil',nom:'Mi PIN',ico:'⚿',fn:'perfil'}
+];
+let limpiarVista=null, cortarBahias=null, bahiasApp=[];
+
+function pintarNav() {
+  $('#nav').innerHTML = TABS.map(t=>{
+    if (t.grupo) return `<div class="grupo-nav">${t.grupo}</div>`;
+    if (t.admin && !esAdmin()) return '';
+    if (!t.fn) return `<button class="tab pendiente" disabled><span class="tab-icono">${t.ico}</span>${t.nom}<span class="tab-pronto">v${t.v}</span></button>`;
+    return `<a class="tab" href="#${t.id}" data-id="${t.id}"><span class="tab-icono">${t.ico}</span>${t.nom}</a>`;
+  }).join('');
+}
+async function ir() {
+  const id=location.hash.slice(1)||'registro';
+  const tab=TABS.find(t=>t.id===id&&t.fn);
+  if (!tab) { location.hash='#registro'; return; }
+  if (tab.admin && !esAdmin()) { location.hash='#registro'; return; }
+  document.querySelectorAll('.tab[data-id]').forEach(a=>a.classList.toggle('activa',a.dataset.id===id));
+  $('#titulo').textContent=tab.nom;
+  $('#rail').classList.remove('abierto');
+  if (limpiarVista) { try{limpiarVista();}catch{} limpiarVista=null; }
+  const vista=$('#vista'); vista.innerHTML='<p class="vacio">Cargando…</p>';
+  try { vista.innerHTML=''; limpiarVista=await MODULOS[tab.fn](vista)||null; }
+  catch(e){ console.error(e); vista.innerHTML=`<div class="vacio"><p>No se pudo abrir esta pestaña.</p><p class="hint mono">${esc(e.message)}</p></div>`; }
+}
+function pintarEstado() {
+  const ocupadas=bahiasApp.filter(b=>b.estado==='ACTIVO').length;
+  const hoy=hoyISO();
+  $('#estado').innerHTML=`<span>${diaSemana(hoy)} ${fechaBO(hoy)}</span><span style="opacity:.4">·</span><span>Bahías <b>${ocupadas}/${bahiasApp.length||8}</b></span>`;
+}
+async function iniciarApp() {
+  mostrar('app');
+  $('#quien').textContent=sesion.nombre;
+  $('#rol').textContent=sesion.rol;
+  $('#avatar').textContent=iniciales(sesion.nombre);
+  pintarNav();
+  cortarBahias = escucharBahias(b=>{ bahiasApp=b; pintarEstado(); });
+  pintarEstado();
+  removeEventListener('hashchange',ir);
+  addEventListener('hashchange',ir);
+  ir();
+}
+$('#salir').onclick=()=>signOut(auth);
+$('#menu').onclick=()=>$('#rail').classList.toggle('abierto');
+
+/* =========================================================
+   ARRANQUE
+   ========================================================= */
+onAuthStateChanged(auth, async u => {
+  if (!u) {
+    if (cortarBahias) { cortarBahias(); cortarBahias=null; }
+    iniciarLogin();
+    return;
+  }
+  try { await cargarSesion(u.uid); }
+  catch(e) {
+    // Sesión de Firebase sin perfil: probablemente el instalador a medias.
+    if (P_INST.style.display!=='none') return; // el instalador maneja esto
+    await signOut(auth);
+    if (e.message!=='inactivo') { iniciarLogin(); return; }
+    iniciarLogin();
+    setTimeout(()=>{ $('#login-mensaje').textContent='Tu usuario está desactivado. Hablá con el administrador.'; },300);
+    return;
+  }
+  iniciarApp();
 });
 </script>
 </body>
