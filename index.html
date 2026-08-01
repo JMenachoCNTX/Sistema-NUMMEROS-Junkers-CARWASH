@@ -639,6 +639,46 @@ async function aportesDelDia(fecha) {
   return s.docs.map(d=>({id:d.id,...d.data()}));
 }
 
+/* ---------- PERSONAL (v0.4) ---------- */
+// Semana de pago: sábado a viernes (cierra el sábado). Devuelve {desde, hasta, etiqueta}.
+function semanaDe(iso) {
+  const [a,m,d]=iso.split('-').map(Number);
+  const fecha=new Date(a,m-1,d);
+  const dow=fecha.getDay(); // 0 dom … 6 sáb
+  // retroceder hasta el sábado (inicio de semana de pago)
+  const diasDesdeSabado=(dow+1)%7; // sáb=0, dom=1, ..., vie=6
+  const inicio=new Date(fecha); inicio.setDate(fecha.getDate()-diasDesdeSabado);
+  const fin=new Date(inicio); fin.setDate(inicio.getDate()+6);
+  const fmt=x=>`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`;
+  return { desde:fmt(inicio), hasta:fmt(fin), etiqueta:`${fmt(inicio)} → ${fmt(fin)}` };
+}
+
+// Asistencia: un doc por fecha+persona. Marca presente.
+async function asistenciaDelDia(fecha) {
+  const s = await getDocs(query(collection(db,'asistencia'),where('fecha','==',fecha)));
+  return s.docs.map(d=>({id:d.id,...d.data()}));
+}
+async function asistenciaEntre(desde, hasta) {
+  const s = await getDocs(query(collection(db,'asistencia'),
+    where('fecha','>=',desde),where('fecha','<=',hasta)));
+  return s.docs.map(d=>({id:d.id,...d.data()}));
+}
+const marcarAsistencia = (fecha,persona,presente) =>
+  setDoc(doc(db,'asistencia',`${fecha}_${persona}`),{fecha,persona,presente},{merge:true});
+
+// Adelantos y descuentos por persona (se restan en la planilla).
+const nuevoAjustePlanilla = d => addDoc(collection(db,'planilla_ajustes'),{...d,creadoEn:serverTimestamp()});
+const borrarAjustePlanilla = id => deleteDoc(doc(db,'planilla_ajustes',id));
+async function ajustesEntre(desde, hasta) {
+  const s = await getDocs(query(collection(db,'planilla_ajustes'),
+    where('fecha','>=',desde),where('fecha','<=',hasta)));
+  return s.docs.map(d=>({id:d.id,...d.data()}));
+}
+
+// Planilla cerrada: guarda el resultado de una semana.
+const guardarPlanilla = (id,d) => setDoc(doc(db,'planillas',id),d,{merge:true});
+const leerPlanilla = async id => { const s=await getDoc(doc(db,'planillas',id)); return s.exists()?{id,...s.data()}:null; };
+
 /* =========================================================
    PANTALLAS: login / instalador / app
    ========================================================= */
@@ -1239,21 +1279,40 @@ function editorCat(cat,caja,CATS,item=null) {
   const extra = cat==='vehiculos'
     ? `<label class="campo"><span>Clasificación para bonos</span><select id="x">${opciones(['AUTO','MOTO'],item?.clasificacion||'AUTO')}</select></label>`
     : cat==='personal'
-    ? `<label class="campo"><span>Modo de pago</span><select id="x">${opciones(['diario+bono','45%'],item?.modoPago||'diario+bono')}</select></label>` : '';
+    ? `<div style="border-top:1px solid var(--linea);margin:14px 0;padding-top:14px">
+        <p class="hint" style="margin-bottom:12px">Cómo se le paga a esta persona. Podés combinar los tres.</p>
+        <label class="campo" style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+          <input type="checkbox" id="pgBono" ${item?.pagaBono!==false?'checked':''} style="width:auto">
+          <span style="margin:0;letter-spacing:0;text-transform:none;font-size:14px;color:var(--espuma);font-family:var(--texto)">Cobra bono por lavado (Bs 5 auto / Bs 3 moto)</span></label>
+        <div class="rejilla rejilla-2" style="gap:0 12px">
+          <label class="campo"><span>Fijo por día (Bs)</span>
+            <input class="mono" type="number" min="0" step="0.5" id="pgFijo" value="${item?.fijoDia??0}"></label>
+          <label class="campo"><span>Comisión sobre lavados (%)</span>
+            <input class="mono" type="number" min="0" max="100" step="1" id="pgComision" value="${item?.comision??0}"></label></div>
+        <p class="hint">Ejemplos: solo bono → fijo 0, comisión 0, bono ✓. Comisión + bono → comisión 45, bono ✓.
+          Fijo + bono → fijo 50, bono ✓, comisión 0.</p></div>`
+    : '';
   const m=modal(item?'Editar':`Agregar a ${CATS[cat].titulo.toLowerCase()}`,`
     <label class="campo"><span>Nombre</span><input id="n" value="${esc(item?.nombre||'')}"></label>${extra}
     <label class="campo"><span>Orden en la lista</span><input class="mono" type="number" id="o" value="${item?.orden??10}"></label>
     <label class="campo" style="display:flex;gap:8px;align-items:center">
       <input type="checkbox" id="a" ${item?.activo===false?'':'checked'} style="width:auto">
       <span style="margin:0;letter-spacing:0;text-transform:none;font-size:14px;color:var(--espuma);font-family:var(--texto)">Activo</span></label>
-    <div class="fila-btn" style="justify-content:flex-end"><button class="btn btn-agua" id="ok">Guardar</button></div>`,{ancho:400});
+    <div class="fila-btn" style="justify-content:flex-end"><button class="btn btn-agua" id="ok">Guardar</button></div>`,{ancho:440});
   m.cuerpo.querySelector('#ok').onclick = async () => {
     const g=id=>m.cuerpo.querySelector('#'+id);
     const nombre=g('n').value.trim().toUpperCase();
     if (!nombre) return aviso('Escribí un nombre.','error');
     const d={nombre,orden:Number(g('o').value)||10,activo:g('a').checked};
     if (cat==='vehiculos') d.clasificacion=g('x').value;
-    if (cat==='personal')  d.modoPago=g('x').value;
+    if (cat==='personal') {
+      d.pagaBono = g('pgBono').checked;
+      d.fijoDia = Number(g('pgFijo').value)||0;
+      d.comision = Number(g('pgComision').value)||0;
+      // modoPago legible para mostrar en la tabla
+      const partes=[]; if(d.fijoDia) partes.push('fijo'); if(d.comision) partes.push(d.comision+'%'); if(d.pagaBono) partes.push('bono');
+      d.modoPago = partes.join('+')||'—';
+    }
     try { if (item) await guardarItem(cat,item.id,d); else await nuevoItem(cat,d);
       limpiarCache(cat); m.cerrar(); await pintarCat(cat,caja,CATS); aviso('Guardado.','ok'); }
     catch(e){ aviso(e.message,'error'); }
@@ -1861,6 +1920,217 @@ MODULOS.arqueo = async function(vista) {
 };
 
 /* =========================================================
+   MÓDULOS PERSONAL (v0.4)
+   ========================================================= */
+
+// Cálculo central: recorre las órdenes de un rango y arma, por lavador,
+// autos/motos atendidos, valor total de sus lavados, bono y comisión.
+async function calcularProduccion(desde, hasta) {
+  const [ordenes, vehiculos, personal, cfg] = await Promise.all([
+    ordenesEntre(desde, hasta, 5000), catalogoActivos('vehiculos'), catalogo('personal',true), config()
+  ]);
+  const claseDe = {};
+  vehiculos.forEach(v=>claseDe[v.nombre]=v.clasificacion||'AUTO');
+  const bonoAuto = Number(cfg.bonoAuto??5), bonoMoto = Number(cfg.bonoMoto??3);
+
+  const acc = {};
+  personal.forEach(p => acc[p.nombre] = {
+    nombre:p.nombre, autos:0, motos:0, valor:0,
+    pagaBono:p.pagaBono!==false, fijoDia:Number(p.fijoDia||0), comisionPct:Number(p.comision||0),
+    modoPago:p.modoPago||'—'
+  });
+  for (const o of ordenes) {
+    const lav = o.atencion;
+    if (!lav || !acc[lav]) continue; // sin lavador asignado o ya no existe
+    const clase = claseDe[o.tipoVehiculo] || 'AUTO';
+    if (clase==='MOTO') acc[lav].motos++; else acc[lav].autos++;
+    acc[lav].valor += Number(o.tarifa||0);
+  }
+  return Object.values(acc).map(a => {
+    const bono = a.pagaBono ? a.autos*bonoAuto + a.motos*bonoMoto : 0;
+    const comision = a.comisionPct ? a.valor*a.comisionPct/100 : 0;
+    return { ...a, bono, comision, bonoAuto, bonoMoto };
+  });
+}
+
+// ---------- BONOS ----------
+MODULOS.bonos = async function(vista) {
+  vista.innerHTML = `<div class="tarjeta">
+    <div class="rejilla rejilla-3" style="gap:0 12px;align-items:end">
+      <label class="campo"><span>Desde</span><input type="date" id="d"></label>
+      <label class="campo"><span>Hasta</span><input type="date" id="h"></label>
+      <div class="fila-btn"><button class="btn btn-agua" id="ver">Ver</button>
+        <button class="btn" id="semana">Esta semana</button></div></div>
+    <p class="hint">Los lavados se cuentan desde el campo "Atención" de cada orden. El bono es Bs 5 por auto
+      y Bs 3 por moto (editable en Listas → Datos del negocio).</p></div>
+    <div class="mt" id="cuerpo"></div>`;
+
+  async function ver() {
+    const desde=$('#d',vista).value, hasta=$('#h',vista).value;
+    if (!desde||!hasta) return;
+    $('#cuerpo',vista).innerHTML='<p class="vacio">Calculando…</p>';
+    const prod = (await calcularProduccion(desde,hasta))
+      .filter(p=>p.autos||p.motos)
+      .sort((a,b)=>(b.bono+b.comision)-(a.bono+a.comision));
+    if (!prod.length) { $('#cuerpo',vista).innerHTML='<div class="vacio"><p>Sin lavados con lavador asignado en ese rango.</p></div>'; return; }
+    const tot = prod.reduce((s,p)=>({autos:s.autos+p.autos,motos:s.motos+p.motos,bono:s.bono+p.bono,comision:s.comision+p.comision}),{autos:0,motos:0,bono:0,comision:0});
+    $('#cuerpo',vista).innerHTML = `<div class="tabla-marco"><table>
+      <thead><tr><th>Lavador</th><th class="num">Autos</th><th class="num">Motos</th>
+        <th class="num">Valor lavados</th><th class="num">Bono</th><th class="num">Comisión</th><th class="num">Total</th></tr></thead>
+      <tbody>${prod.map(p=>`<tr><td><b>${esc(p.nombre)}</b></td>
+        <td class="num">${p.autos}</td><td class="num">${p.motos}</td>
+        <td class="num">${bs(p.valor)}</td><td class="num">${bs(p.bono)}</td>
+        <td class="num">${p.comision?bs(p.comision):'—'}</td>
+        <td class="num" style="font-weight:700">${bs(p.bono+p.comision)}</td></tr>`).join('')}
+        <tr style="border-top:2px solid var(--linea);font-weight:700">
+          <td>TOTAL</td><td class="num">${tot.autos}</td><td class="num">${tot.motos}</td><td></td>
+          <td class="num">${bs(tot.bono)}</td><td class="num">${bs(tot.comision)}</td>
+          <td class="num">${bs(tot.bono+tot.comision)}</td></tr></tbody></table></div>`;
+  }
+  $('#ver',vista).onclick=ver;
+  $('#semana',vista).onclick=()=>{const s=semanaDe(hoyISO());$('#d',vista).value=s.desde;$('#h',vista).value=s.hasta;ver();};
+  const s=semanaDe(hoyISO()); $('#d',vista).value=s.desde; $('#h',vista).value=s.hasta;
+  await ver();
+};
+
+// ---------- PLANILLAS ----------
+MODULOS.planillas = async function(vista) {
+  vista.innerHTML = `<div class="tarjeta">
+    <div class="rejilla rejilla-2" style="gap:0 12px;align-items:end">
+      <label class="campo"><span>Semana (elegí cualquier día de esa semana)</span>
+        <input type="date" id="dia" value="${hoyISO()}"></label>
+      <div><button class="btn btn-agua" id="ver">Ver semana</button></div></div>
+    <p class="hint" id="rango"></p></div>
+    <div class="mt" id="asistencia-caja"></div>
+    <div class="mt" id="cuerpo"></div>`;
+
+  async function ver() {
+    const s=semanaDe($('#dia',vista).value);
+    $('#rango',vista).textContent = `Semana de pago: ${fechaBO(s.desde)} al ${fechaBO(s.hasta)} (sábado a viernes).`;
+    $('#cuerpo',vista).innerHTML='<p class="vacio">Calculando…</p>';
+    $('#asistencia-caja',vista).innerHTML='';
+
+    const [prod, personal, asistencia, ajustes] = await Promise.all([
+      calcularProduccion(s.desde,s.hasta), catalogoActivos('personal'),
+      asistenciaEntre(s.desde,s.hasta), ajustesEntre(s.desde,s.hasta)
+    ]);
+    const prodPorNombre={}; prod.forEach(p=>prodPorNombre[p.nombre]=p);
+
+    // días trabajados por persona
+    const dias={}; personal.forEach(p=>dias[p.nombre]=0);
+    asistencia.forEach(a=>{ if(a.presente && dias[a.persona]!==undefined) dias[a.persona]++; });
+
+    // ajustes por persona
+    const adel={}, desc={}; personal.forEach(p=>{adel[p.nombre]=0;desc[p.nombre]=0;});
+    ajustes.forEach(a=>{ if(a.tipo==='ADELANTO'&&adel[a.persona]!==undefined) adel[a.persona]+=Number(a.monto||0);
+      if(a.tipo==='DESCUENTO'&&desc[a.persona]!==undefined) desc[a.persona]+=Number(a.monto||0); });
+
+    // ---- ASISTENCIA de la semana (grilla marcable) ----
+    const fechas=[]; for(let i=0;i<7;i++){const dd=new Date(s.desde);dd.setDate(dd.getDate()+i);
+      fechas.push(`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`);}
+    const presente={}; asistencia.forEach(a=>{presente[`${a.fecha}_${a.persona}`]=a.presente;});
+    const diaCorto=iso=>['D','L','M','X','J','V','S'][new Date(...iso.split('-').map((v,i)=>i===1?v-1:+v)).getDay()];
+    $('#asistencia-caja',vista).innerHTML=`<div class="tarjeta"><h3>Asistencia de la semana</h3>
+      <p class="hint" style="margin:-8px 0 12px">Tocá cada casilla para marcar quién trabajó cada día.</p>
+      <div class="tabla-marco"><table><thead><tr><th>Lavador</th>
+        ${fechas.map(f=>`<th class="num" title="${fechaBO(f)}">${diaCorto(f)} ${f.slice(8)}</th>`).join('')}
+        <th class="num">Días</th></tr></thead>
+      <tbody>${personal.map(p=>`<tr><td>${esc(p.nombre)}</td>
+        ${fechas.map(f=>{const on=presente[`${f}_${p.nombre}`];
+          return `<td class="num"><button class="btn btn-chico ${on?'btn-verde':''}" data-asis="${f}|${p.nombre}"
+            style="min-width:34px;${on?'':'opacity:.55'}">${on?'✓':'·'}</button></td>`;}).join('')}
+        <td class="num" style="font-weight:600">${dias[p.nombre]||0}</td></tr>`).join('')}</tbody></table></div></div>`;
+    $('#asistencia-caja',vista).querySelectorAll('[data-asis]').forEach(b=>b.onclick=async()=>{
+      const [f,per]=b.dataset.asis.split('|');
+      const nuevo=!(presente[`${f}_${per}`]);
+      b.disabled=true;
+      try { await marcarAsistencia(f,per,nuevo); ver(); } catch(e){ aviso(e.message,'error'); b.disabled=false; }
+    });
+
+    // ---- PLANILLA ----
+    const filas = personal.map(p=>{
+      const pr=prodPorNombre[p.nombre]||{autos:0,motos:0,valor:0,bono:0,comision:0,fijoDia:Number(p.fijoDia||0)};
+      const d=dias[p.nombre]||0;
+      const fijo=d*Number(p.fijoDia||0);
+      const bruto=fijo+pr.bono+pr.comision;
+      const neto=bruto-adel[p.nombre]-desc[p.nombre];
+      return {nombre:p.nombre,dias:d,autos:pr.autos,motos:pr.motos,fijo,bono:pr.bono,comision:pr.comision,
+        bruto,adelanto:adel[p.nombre],descuento:desc[p.nombre],neto};
+    }).filter(f=>f.bruto>0||f.dias>0||f.adelanto>0||f.descuento>0);
+
+    const tot=filas.reduce((s,f)=>({fijo:s.fijo+f.fijo,bono:s.bono+f.bono,comision:s.comision+f.comision,
+      bruto:s.bruto+f.bruto,adelanto:s.adelanto+f.adelanto,descuento:s.descuento+f.descuento,neto:s.neto+f.neto}),
+      {fijo:0,bono:0,comision:0,bruto:0,adelanto:0,descuento:0,neto:0});
+
+    $('#cuerpo',vista).innerHTML = `<div class="tarjeta"><h3>Planilla semanal</h3>
+      ${filas.length?`<div class="tabla-marco"><table>
+        <thead><tr><th>Lavador</th><th class="num">Días</th><th class="num">Autos</th><th class="num">Motos</th>
+          <th class="num">Fijo</th><th class="num">Bono</th><th class="num">Comis.</th><th class="num">Bruto</th>
+          <th class="num">Adel.</th><th class="num">Desc.</th><th class="num">Neto</th><th></th></tr></thead>
+        <tbody>${filas.map(f=>`<tr><td><b>${esc(f.nombre)}</b></td>
+          <td class="num">${f.dias}</td><td class="num">${f.autos}</td><td class="num">${f.motos}</td>
+          <td class="num">${bs(f.fijo)}</td><td class="num">${bs(f.bono)}</td><td class="num">${f.comision?bs(f.comision):'—'}</td>
+          <td class="num">${bs(f.bruto)}</td>
+          <td class="num" style="${f.adelanto?'color:var(--cera)':''}">${f.adelanto?bs(f.adelanto):'—'}</td>
+          <td class="num" style="${f.descuento?'color:var(--rojo)':''}">${f.descuento?bs(f.descuento):'—'}</td>
+          <td class="num" style="font-weight:700">${bs(f.neto)}</td>
+          <td><button class="btn btn-chico" data-ajuste="${esc(f.nombre)}">Adel./Desc.</button></td></tr>`).join('')}
+          <tr style="border-top:2px solid var(--linea);font-weight:700"><td>TOTAL</td><td></td><td></td><td></td>
+            <td class="num">${bs(tot.fijo)}</td><td class="num">${bs(tot.bono)}</td><td class="num">${bs(tot.comision)}</td>
+            <td class="num">${bs(tot.bruto)}</td><td class="num">${bs(tot.adelanto)}</td><td class="num">${bs(tot.descuento)}</td>
+            <td class="num">${bs(tot.neto)}</td><td></td></tr></tbody></table></div>
+        <div class="fila-btn mt"><button class="btn" id="csv">Descargar CSV</button>
+          ${esAdmin()?`<button class="btn btn-verde" id="cerrar">Cerrar y guardar semana</button>`:''}</div>`
+      :'<div class="vacio"><p>Sin datos de personal en esta semana.</p></div>'}</div>`;
+
+    vista.querySelectorAll('[data-ajuste]').forEach(b=>b.onclick=()=>ajustar(b.dataset.ajuste,s));
+    const csvB=$('#csv',vista);
+    if (csvB) csvB.onclick=()=>{
+      const cols=['nombre','dias','autos','motos','fijo','bono','comision','bruto','adelanto','descuento','neto'];
+      const e=v=>`"${String(v??'').replace(/"/g,'""')}"`;
+      const txt=[cols.join(',')].concat(filas.map(f=>cols.map(c=>e(f[c])).join(','))).join('\n');
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(new Blob(['\ufeff'+txt],{type:'text/csv;charset=utf-8'}));
+      a.download=`junkers-planilla-${s.desde}.csv`; a.click();
+    };
+    const cerrarB=$('#cerrar',vista);
+    if (cerrarB) cerrarB.onclick=async()=>{
+      if (!await confirmar(`Guardar el cierre de la semana ${fechaBO(s.desde)}–${fechaBO(s.hasta)}. Total neto: Bs ${bs(tot.neto)}.`,'Cerrar semana')) return;
+      await guardarPlanilla(s.desde,{desde:s.desde,hasta:s.hasta,filas,total:tot,
+        cerradoPor:sesion.nombre,cerradoEn:serverTimestamp()});
+      aviso('Semana guardada.','ok');
+    };
+  }
+
+  function ajustar(persona, s) {
+    const m=modal(`Adelanto / descuento · ${persona}`,`
+      <label class="campo"><span>Tipo</span><select id="tipo">
+        <option value="ADELANTO">Adelanto (le diste plata antes)</option>
+        <option value="DESCUENTO">Descuento (rotura, faltante, etc.)</option></select></label>
+      <div class="rejilla rejilla-2" style="gap:0 12px">
+        <label class="campo"><span>Monto (Bs)</span><input class="mono" type="number" min="0" step="0.5" id="monto"></label>
+        <label class="campo"><span>Fecha</span><input type="date" id="fecha" value="${hoyISO()}"></label></div>
+      <label class="campo"><span>Motivo — opcional</span><input id="motivo"></label>
+      <div class="fila-btn" style="justify-content:flex-end"><button class="btn btn-agua" id="ok">Registrar</button></div>`,{ancho:420});
+    m.cuerpo.querySelector('#ok').onclick = async () => {
+      const g=id=>m.cuerpo.querySelector('#'+id);
+      const monto=Number(g('monto').value)||0;
+      if (monto<=0) return aviso('Poné un monto válido.','error');
+      const fecha=g('fecha').value;
+      if (fecha<s.desde||fecha>s.hasta) return aviso('La fecha tiene que caer dentro de esta semana.','error');
+      try {
+        await nuevoAjustePlanilla({persona,tipo:g('tipo').value,monto,fecha,motivo:g('motivo').value.trim(),
+          encargado:sesion.nombre});
+        m.cerrar(); ver(); aviso('Registrado.','ok');
+      } catch(e){ aviso(e.message,'error'); }
+    };
+  }
+
+  $('#ver',vista).onclick=ver;
+  await ver();
+};
+
+/* =========================================================
    MENÚ Y RUTEO
    ========================================================= */
 const TABS=[
@@ -1879,8 +2149,8 @@ const TABS=[
   {id:'stock',nom:'Stock',ico:'⚖',fn:'stock'},
   {id:'insumos',nom:'Insumos limpieza',ico:'◍',fn:'insumos'},
   {grupo:'Personal'},
-  {id:'bonos',nom:'Bonos',ico:'★',v:'0.4'},
-  {id:'planillas',nom:'Planillas',ico:'▥',v:'0.4'},
+  {id:'bonos',nom:'Bonos',ico:'★',fn:'bonos'},
+  {id:'planillas',nom:'Planillas',ico:'▥',fn:'planillas'},
   {grupo:'Catálogos'},
   {id:'precios',nom:'Precios',ico:'฿',fn:'precios'},
   {id:'catalogos',nom:'Listas',ico:'⌗',fn:'catalogos'},
